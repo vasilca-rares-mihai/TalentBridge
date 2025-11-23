@@ -1,0 +1,7 @@
+class ExerciseThresholds:
+    SQUAT_DOWN_ANGLE = 70
+    SQUAT_UP_ANGLE = 150
+    PUSHUP_DOWN_ANGLE = 90
+    PUSHUP_UP_ANGLE = 160
+    PULLUP_DOWN_ANGLE = 90
+    PULLUP_UP_ANGLE = 160
