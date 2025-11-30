@@ -76,19 +76,3 @@ class VerticalJumpAnalyzer(VideoAnalyzer):
         if self.prev_counter != self.counter:
             print(f"Jump: {self.counter}; jump height: {self.list_of_jumps[self.counter]} m")
             self.prev_counter = self.counter
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
