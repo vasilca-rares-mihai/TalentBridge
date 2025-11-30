@@ -78,4 +78,3 @@ if __name__ == "__main__":
         print("\n--- Running Analysis ---")
         manager.run_analysis(workout, a1)
         print("The program has closed.")
-
