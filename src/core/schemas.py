@@ -1,14 +1,29 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional, List
 from datetime import date
 from enum import Enum
 
-
 class GenderEnum(str, Enum):
-    Male = 'Male'
-    Female = 'Female'
-    Other = 'Other'
+    male = 'Male'
+    female = 'Female'
+    other = 'Other'
+##########################################################
+class ChallengeBase(BaseModel):
+    challenge_name: str
+    unit_of_measure: str
 
+
+class ChallengeCreate(ChallengeBase):
+    pass
+
+
+class Challenge(ChallengeBase):
+    id_challenge: int
+
+    class Config:
+        from_attributes = True
+
+##########################################
 
 class ChallengeResultBase(BaseModel):
     result_value: float
@@ -22,14 +37,14 @@ class ChallengeResultCreate(ChallengeResultBase):
 
 class ChallengeResult(ChallengeResultBase):
     id_result: int
-    challenge_id: int
-
     class Config:
         from_attributes = True
 
+##############################################################################
 
 class AttributeBase(BaseModel):
     date_calculated: date
+
     acceleration: int
     sprint_speed: int
     finishing: int
@@ -59,23 +74,30 @@ class Attribute(AttributeBase):
     class Config:
         from_attributes = True
 
+##################################################
 
 class AthleteBase(BaseModel):
     first_name: str
     second_name: Optional[str] = None
+
     age: Optional[int] = None
+
     gender: Optional[GenderEnum] = None
+
     height: Optional[float] = None
     weight: Optional[float] = None
     country: Optional[str] = None
     region: Optional[str] = None
     city: Optional[str] = None
+
     email: Optional[str] = None
+
     phone_number: Optional[str] = None
     date_of_birth: Optional[date] = None
 
 
 class AthleteCreate(AthleteBase):
+    first_name: str
     pass
 
 
@@ -94,7 +116,7 @@ class AthleteUpdate(BaseModel):
     date_of_birth: Optional[date] = None
 
 
-class AthleteResponse(AthleteBase):
+class Athlete(AthleteBase):
     id_athlete: int
 
     attributes: List[Attribute] = []
@@ -102,6 +124,3 @@ class AthleteResponse(AthleteBase):
 
     class Config:
         from_attributes = True
-
-
-Athlete = AthleteResponse
