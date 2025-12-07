@@ -38,5 +38,21 @@ def insert_athlete_db(athlete_data: AthleteCreate, db: Session = Depends(get_db)
             detail="Athlete create error (api.py)"
         )
 
+@app.get("/athletes/{id}", response_model=Athlete, summary="Get athlete id from athlete table")
+def get_athlete_by_id(athlete_id: int, db: Session = Depends(get_db)):
+    try:
+        athlete = data_access.get_athlete_by_id(db, athlete_id)
+        if athlete is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="athlete not found"
+            )
+        return athlete
+    except HTTPException as http_ex:
+        raise http_ex
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 

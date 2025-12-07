@@ -9,6 +9,10 @@ def list_athletes(db: Session, skip: int, limit: int) -> List[Athlete]:
     stms = select(Athlete).offset(skip).limit(limit)
     return db.scalars(stms).all()
 
+def get_athlete_by_id(db: Session, athlete_id: int) -> Athlete:
+    stms = select(Athlete).where(Athlete.id_athlete == athlete_id)
+    return db.scalars(stms).first()
+
 def create_athlete(db: Session, athlete: AthleteCreate):
     new_athlete = Athlete(
         first_name= athlete.first_name,
