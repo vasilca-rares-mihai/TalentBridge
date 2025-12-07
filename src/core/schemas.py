@@ -1,7 +1,8 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator, Field
 from typing import Optional, List
 from datetime import date
 from enum import Enum
+import re
 
 class GenderEnum(str, Enum):
     male = 'Male'
@@ -77,23 +78,41 @@ class Attribute(AttributeBase):
 ##################################################
 
 class AthleteBase(BaseModel):
-    first_name: str
-    second_name: Optional[str] = None
+    first_name: str = Field(..., min_length=1)
+    second_name: str = Field(..., min_length=1)
 
-    age: Optional[int] = None
+    age: int
 
-    gender: Optional[GenderEnum] = None
+    gender: GenderEnum
 
-    height: Optional[float] = None
-    weight: Optional[float] = None
-    country: Optional[str] = None
-    region: Optional[str] = None
-    city: Optional[str] = None
+    height: float
+    weight: float
+    country: str = Field(..., min_length=1)
+    region: str = Field(..., min_length=1)
+    city: str = Field(..., min_length=1)
 
-    email: Optional[str] = None
+    email: str
 
-    phone_number: Optional[str] = None
-    date_of_birth: Optional[date] = None
+    phone_number: str = Field(..., min_length=1)
+    date_of_birth: date
+
+
+
+    @field_validator('height')
+    @classmethod
+    def height_validator(cls, v):
+        if v < 0 or v > 3:
+            raise ValueError("Height incorrect format")
+        return v
+
+    @field_validator('email')
+    @classmethod
+    def email_validator(cls, v):
+        email_regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+        if not re.match(email_regex, v):
+            raise ValueError("Email incorrect format (ex: nume@domeniu.com)")
+        return v
+
 
 
 class AthleteCreate(AthleteBase):
@@ -124,3 +143,4 @@ class Athlete(AthleteBase):
 
     class Config:
         from_attributes = True
+
