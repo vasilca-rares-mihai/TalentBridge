@@ -1,10 +1,11 @@
+import shutil
 from typing import List
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from core.schemas import AthleteCreate, Athlete
-
+import os
 from routes import data_access
 from core.database import get_db
 app = FastAPI()
@@ -56,3 +57,23 @@ def get_athlete_by_id(athlete_id: int, db: Session = Depends(get_db)):
         )
 
 
+@app.post("/upload-video/")
+async def upload_video(file: UploadFile = File(...)):
+    save_directory = "videos"
+    os.makedirs(save_directory, exist_ok=True)
+    file_location = os.path.join(save_directory, file.filename)
+
+    try:
+        with open(file_location, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        return {
+            "message": "Video successfully received",
+            "saved_path": file_location,
+            "filename": file.filename
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
