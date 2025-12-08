@@ -4,7 +4,7 @@ from typing import List
 from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from core.schemas import AthleteCreate, Athlete, ChallengeCreate
+from core.schemas import AthleteCreate, Athlete, ChallengeResult
 import os
 from routes import data_access
 from core.database import get_db
@@ -39,6 +39,32 @@ def insert_athlete_db(athlete_data: AthleteCreate, db: Session = Depends(get_db)
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Athlete create error (api.py)"
         )
+
+@app.post("/challenge_result", response_model=ChallengeResult, summary="Insert new challenge in DB")
+def insert_challenge_result_db(id_challenge: int, id_athlete: int, result: int, db: Session = Depends(get_db)):
+    try:
+        challenge = data_access.create_challenge_result(db, id_challenge, id_athlete, result)
+        if challenge is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="It hasn't been 3 months since this athlete completed this challenge."
+            )
+        return challenge
+    except HTTPException as http_ex:
+        raise http_ex
+
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            details="challenge_result_db confilict"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="challenge_result create error (api.py)"
+        )
+
 
 @app.get("/athletes/{id}", response_model=Athlete, summary="Get athlete id from athlete table")
 def get_athlete_by_id(athlete_id: int, db: Session = Depends(get_db)):

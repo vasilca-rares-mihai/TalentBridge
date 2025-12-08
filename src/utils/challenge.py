@@ -5,4 +5,4 @@ ANALYZERS = {
     'treadmill': StepAnalyzer,
     'pullup': PullupAnalyzer,
     'vjump': VerticalJumpAnalyzer,
-}
+
