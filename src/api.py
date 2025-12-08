@@ -4,10 +4,11 @@ from typing import List
 from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from core.schemas import AthleteCreate, Athlete
+from core.schemas import AthleteCreate, Athlete, ChallengeCreate
 import os
 from routes import data_access
 from core.database import get_db
+from utils.challenge import ANALYZERS
 app = FastAPI()
 
 
@@ -58,18 +59,21 @@ def get_athlete_by_id(athlete_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/upload-video/")
-async def upload_video(file: UploadFile = File(...)):
-    save_directory = "videos"
+async def upload_video(athlete_id: int, id_challenge : int, db: Session = Depends(get_db), file: UploadFile = File(...)):
+    athlete = data_access.get_athlete_by_id(db, athlete_id)
+    workout_type = data_access.get_workout_type(db, id_challenge)
+    save_directory = os.path.join("videos", workout_type, str(athlete.id_athlete))
     os.makedirs(save_directory, exist_ok=True)
-    file_location = os.path.join(save_directory, file.filename)
+    video_name = f"{workout_type}.mp4"
+    video_path = os.path.join(save_directory, video_name)
 
     try:
-        with open(file_location, "wb") as buffer:
+        with open(video_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
         return {
             "message": "Video successfully received",
-            "saved_path": file_location,
+            "saved_path": video_path,
             "filename": file.filename
         }
 
@@ -77,3 +81,54 @@ async def upload_video(file: UploadFile = File(...)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+@app.post("/analyze", summary="Run analysis on an uploaded video")
+def run_analysis_route(id_athlete: int, id_challenge: int, db: Session = Depends(get_db)):
+    athlete = data_access.get_athlete_by_id(db, id_athlete)
+    workout_type = data_access.get_workout_type(db, id_challenge)
+    save_directory = os.path.join("videos", workout_type, str(athlete.id_athlete))
+    os.makedirs(save_directory, exist_ok=True)
+    video_name = f"{workout_type}.mp4"
+    video_path = os.path.join(save_directory, video_name)
+
+    if not os.path.exists(video_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"folder '{video_name}' does not exist"
+        )
+
+    if not workout_type:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Type '{workout_type}' does not exist."
+        )
+
+    if not athlete:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Id athlete {id_athlete} does not  exist."
+        )
+
+    try:
+        AnalyzerClass = ANALYZERS[workout_type]
+        analyzer = AnalyzerClass(video_path)
+        analysis_result = analyzer.analyze(athlete)
+
+        if os.path.exists(video_path):
+            os.remove(video_path)
+        return {
+            "status": "success",
+            "athlete": f"{athlete.first_name} {athlete.second_name}",
+            "video": f"{video_name}",
+            "results": analysis_result
+        }
+
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error analyzing {video_path}: {e}"
+        )
+
+
+
