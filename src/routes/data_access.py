@@ -1,4 +1,4 @@
-from core.sql_models import *
+from core.sql_models import Athlete, Challenge
 from typing import List
 from sqlalchemy.orm import Session
 from sqlalchemy import select, update, delete
