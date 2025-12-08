@@ -142,13 +142,8 @@ def run_analysis_route(id_athlete: int, id_challenge: int, db: Session = Depends
 
         if os.path.exists(video_path):
             os.remove(video_path)
-        return {
-            "status": "success",
-            "athlete": f"{athlete.first_name} {athlete.second_name}",
-            "video": f"{video_name}",
-            "results": analysis_result
-        }
-
+        #def insert_challenge_result_db(id_challenge: int, id_athlete: int, result: int, db: Session = Depends(get_db)):
+        insert_challenge_result_db(id_challenge, athlete.id_athlete, analysis_result, db)
 
     except Exception as e:
         raise HTTPException(
