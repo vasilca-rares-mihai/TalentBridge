@@ -4,7 +4,7 @@ from typing import List
 from fastapi import FastAPI, Depends, HTTPException, status, File, UploadFile
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from core.schemas import AthleteCreate, Athlete
+from core.schemas import AthleteCreate, Athlete, ChallengeCreate
 import os
 from routes import data_access
 from core.database import get_db
@@ -58,8 +58,9 @@ def get_athlete_by_id(athlete_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/upload-video/")
-async def upload_video(athlete_id: int, workout_type : str, db: Session = Depends(get_db), file: UploadFile = File(...)):
+async def upload_video(athlete_id: int, id_challenge : int, db: Session = Depends(get_db), file: UploadFile = File(...)):
     athlete = data_access.get_athlete_by_id(db, athlete_id)
+    workout_type = data_access.get_workout_type(db, id_challenge)
     save_directory = os.path.join("videos", workout_type, str(athlete.id_athlete))
     os.makedirs(save_directory, exist_ok=True)
     video_path = os.path.join(save_directory, file.filename)

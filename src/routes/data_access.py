@@ -1,4 +1,4 @@
-from core.sql_models import *
+from core.sql_models import Athlete, Challenge
 from typing import List
 from sqlalchemy.orm import Session
 from sqlalchemy import select, update, delete
@@ -8,6 +8,10 @@ from core.schemas import AthleteCreate
 def list_athletes(db: Session, skip: int, limit: int) -> List[Athlete]:
     stms = select(Athlete).offset(skip).limit(limit)
     return db.scalars(stms).all()
+
+def get_workout_type(db: Session, id_challenge: int) -> str:
+    stms = select(Challenge.challenge_name).where(Challenge.id_challenge == id_challenge)
+    return db.scalars(stms).one()
 
 def get_athlete_by_id(db: Session, athlete_id: int) -> Athlete:
     stms = select(Athlete).where(Athlete.id_athlete == athlete_id)
