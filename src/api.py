@@ -58,18 +58,19 @@ def get_athlete_by_id(athlete_id: int, db: Session = Depends(get_db)):
 
 
 @app.post("/upload-video/")
-async def upload_video(file: UploadFile = File(...)):
-    save_directory = "videos"
+async def upload_video(athlete_id: int, workout_type : str, db: Session = Depends(get_db), file: UploadFile = File(...)):
+    athlete = data_access.get_athlete_by_id(db, athlete_id)
+    save_directory = os.path.join("videos", workout_type, str(athlete.id_athlete))
     os.makedirs(save_directory, exist_ok=True)
-    file_location = os.path.join(save_directory, file.filename)
+    video_path = os.path.join(save_directory, file.filename)
 
     try:
-        with open(file_location, "wb") as buffer:
+        with open(video_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
         return {
             "message": "Video successfully received",
-            "saved_path": file_location,
+            "saved_path": video_path,
             "filename": file.filename
         }
 

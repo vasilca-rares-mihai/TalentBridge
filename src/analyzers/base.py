@@ -86,4 +86,5 @@ class VideoAnalyzer(ABC):
         print(f"Analysis completed. Total repetitions: {self.counter}")
         self.cap.release()
         cv2.destroyAllWindows()
+        return self.counter
 
