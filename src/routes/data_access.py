@@ -1,8 +1,9 @@
-from core.sql_models import Athlete, Challenge
+from core.sql_models import Athlete, ChallengeResult
 from typing import List
 from sqlalchemy.orm import Session
 from sqlalchemy import select, update, delete
-from core.schemas import AthleteCreate
+from core.schemas import AthleteCreate, ChallengeCreate
+from datetime import date, timedelta
 
 
 def list_athletes(db: Session, skip: int, limit: int) -> List[Athlete]:
@@ -36,3 +37,22 @@ def create_athlete(db: Session, athlete: AthleteCreate):
     db.commit()
     db.refresh(new_athlete)
     return new_athlete
+
+def create_challenge_result(db: Session, id_challenge: int, id_athlete: int, result: int):
+    new_challenge_result = ChallengeResult(
+        athlete_id = id_athlete,
+        challenge_id = id_challenge,
+        result_value = result,
+        date_recorded = date.today()
+    )
+    limit_date = date.today() - timedelta(days=90)
+    stms = select(ChallengeResult).where(ChallengeResult.athlete_id == id_athlete,  ChallengeResult.challenge_id == id_challenge,  ChallengeResult.date_recorded > limit_date)
+    existing_result = db.scalars(stms).first()
+    if existing_result:
+        return None
+    db.add(new_challenge_result)
+    db.commit()
+    db.refresh(new_challenge_result)
+    return new_challenge_result
+
+
