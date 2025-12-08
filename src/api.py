@@ -63,7 +63,8 @@ async def upload_video(athlete_id: int, id_challenge : int, db: Session = Depend
     workout_type = data_access.get_workout_type(db, id_challenge)
     save_directory = os.path.join("videos", workout_type, str(athlete.id_athlete))
     os.makedirs(save_directory, exist_ok=True)
-    video_path = os.path.join(save_directory, file.filename)
+    video_name = f"{workout_type}.mp4"
+    video_path = os.path.join(save_directory, video_name)
 
     try:
         with open(video_path, "wb") as buffer:
