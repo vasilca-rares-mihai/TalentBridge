@@ -33,3 +33,16 @@ def insert_challenge_result_db(id_challenge: int, id_athlete: int, result: int, 
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="challenge_result create error (api.py)"
         )
+
+
+@router.post("/challenge", summary="*ADMIN ONLY* Create a new challenge")
+def create_challenge(challenge: Challenge, db: Session = Depends(get_db)):
+    try:
+        new_challenge = data_access.create_challenge(db, challenge)
+        return new_challenge
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Error creating challenge: {e}"
+        )
