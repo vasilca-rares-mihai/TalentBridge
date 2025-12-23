@@ -3,6 +3,8 @@ from typing import List
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from models.sql_models import Athlete, Attribute, ChallengeResult
+from typing import Optional
+from utils.enums import GenderEnum, PositionsEnum, WeakFootEnum
 
 #....................................................athletes utils
 def list_athletes(db: Session) -> List[Athlete]:
@@ -45,6 +47,26 @@ def delete_from_athlete_table(db: Session, id_athlete: int):
     if existing_result:
         db.delete(existing_result)
         db.commit()
+
+
+def list_athletes_by_filter(db: Session, field_position: Optional[PositionsEnum], max_age: Optional[int], gender: Optional[GenderEnum], weak_foot: Optional[WeakFootEnum], height: Optional[float], weight: Optional[float], country: Optional[str]) -> List[Athlete]:
+    stms = select(Athlete)
+    if weak_foot is not None:
+        stms = stms.where(Athlete.weak_foot == weak_foot)
+    if gender is not None:
+        stms = stms.where(Athlete.gender == gender)
+    if field_position is not None:
+        stms = stms.where(Athlete.field_position == field_position)
+    if max_age is not None:
+        stms = stms.where(Athlete.age < max_age)
+    if height:
+        stms = stms.where(Athlete.height < height)
+    if weight:
+        stms = stms.where(Athlete.weight < weight)
+    if country:
+        stms = stms.where(Athlete.country == country)
+
+    return db.scalars(stms).all()
 
 #................................attribute
 def create_attribute(db: Session, id_athlete: int):
