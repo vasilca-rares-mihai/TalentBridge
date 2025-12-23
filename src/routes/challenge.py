@@ -46,3 +46,22 @@ def create_challenge(challenge: Challenge, db: Session = Depends(get_db)):
             status_code=400,
             detail=f"Error creating challenge: {e}"
         )
+
+@router.delete("/challenge/{challenge_id}", summary="*ADMIN ONLY* Delete a challenge")
+def delete_challenge(challenge_id: int, db: Session = Depends(get_db)):
+    try:
+        challenge = data_access.get_challenge_by_id(db, challenge_id)
+        if challenge is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="The challenge to be deleted was not found."
+            )
+        data_access.delete_from_challenge_table(db, challenge_id)
+    except HTTPException as http_ex:
+        raise http_ex
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Athlete delete error (api.py)"
+        )
