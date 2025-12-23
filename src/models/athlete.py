@@ -1,107 +1,49 @@
-from pydantic import BaseModel
-from typing import Optional, List
 from datetime import date
-from enum import Enum
+from typing import Optional
+from pydantic import BaseModel
+from sqlalchemy import Column, BigInteger, String, Integer, Float, Date, Enum
+from database import Base
 
 
-class GenderEnum(str, Enum):
-    Male = 'Male'
-    Female = 'Female'
-    Other = 'Other'
+class Athlete(Base):
+    __tablename__ = 'athlete'
 
+    id_athlete = Column(BigInteger, primary_key=True, autoincrement=True)
 
-class ChallengeResultBase(BaseModel):
-    result_value: float
-    date_recorded: date
-
-
-class ChallengeResultCreate(ChallengeResultBase):
-    athlete_id: int
-    challenge_id: int
-
-
-class ChallengeResult(ChallengeResultBase):
-    id_result: int
-    challenge_id: int
-
-    class Config:
-        from_attributes = True
-
-
-class AttributeBase(BaseModel):
-    date_calculated: date
-    acceleration: int
-    sprint_speed: int
-    finishing: int
-    shot_power: int
-    long_shots: int
-    penalties: int
-    short_pass: int
-    long_pass: int
-    agility: int
-    balance: int
-    ball_control: int
-    dribbling: int
-    heading_acc: int
-    jumping: int
-    stamina: int
-    strength: int
-
-
-class AttributeCreate(AttributeBase):
-    pass
-
-
-class Attribute(AttributeBase):
-    id_attribute: int
-    athlete_id: int
-
-    class Config:
-        from_attributes = True
+    first_name = Column(String(100), nullable=False)
+    second_name = Column(String(100))
+    age = Column(Integer)
+    gender = Column(Enum('Male', 'Female', 'Other'))
+    height = Column(Float)
+    weight = Column(Float)
+    country = Column(String(100))
+    region = Column(String(100))
+    city = Column(String(100))
+    email = Column(String(100))
+    phone_number = Column(String(20))
+    date_of_birth = Column(Date)
 
 
 class AthleteBase(BaseModel):
     first_name: str
     second_name: Optional[str] = None
-    age: Optional[int] = None
-    gender: Optional[GenderEnum] = None
-    height: Optional[float] = None
-    weight: Optional[float] = None
-    country: Optional[str] = None
+    age: int
+    gender: str
+    height: float
+    weight: float
+    country: str
     region: Optional[str] = None
     city: Optional[str] = None
     email: Optional[str] = None
     phone_number: Optional[str] = None
-    date_of_birth: Optional[date] = None
+    date_of_birth: date
 
 
 class AthleteCreate(AthleteBase):
     pass
 
 
-class AthleteUpdate(BaseModel):
-    first_name: Optional[str] = None
-    second_name: Optional[str] = None
-    age: Optional[int] = None
-    gender: Optional[GenderEnum] = None
-    height: Optional[float] = None
-    weight: Optional[float] = None
-    country: Optional[str] = None
-    region: Optional[str] = None
-    city: Optional[str] = None
-    email: Optional[str] = None
-    phone_number: Optional[str] = None
-    date_of_birth: Optional[date] = None
-
-
 class AthleteResponse(AthleteBase):
     id_athlete: int
-
-    attributes: List[Attribute] = []
-    results: List[ChallengeResult] = []
-
     class Config:
         from_attributes = True
-
-
-Athlete = AthleteResponse
