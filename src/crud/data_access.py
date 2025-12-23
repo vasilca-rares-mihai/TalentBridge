@@ -5,6 +5,7 @@ from sqlalchemy import select
 from models.sql_models import Athlete, Attribute, ChallengeResult
 from typing import Optional
 from utils.enums import GenderEnum, PositionsEnum, WeakFootEnum
+from datetime import date, timedelta
 
 #....................................................athletes utils
 def list_athletes(db: Session) -> List[Athlete]:
@@ -163,3 +164,22 @@ def delete_from_challenge_result_table(db: Session, id_athlete: int):
     if existing_result:
         db.delete(existing_result)
         db.commit()
+
+def create_challenge_result(db: Session, id_challenge: int, id_athlete: int, result: int):
+    new_challenge_result = ChallengeResult(
+        athlete_id = id_athlete,
+        challenge_id = id_challenge,
+        result_value = result,
+        date_recorded = date.today()
+    )
+    limit_date = date.today() - timedelta(days=90)
+    stms = select(ChallengeResult).where(ChallengeResult.athlete_id == id_athlete,  ChallengeResult.challenge_id == id_challenge)
+    existing_result = db.scalars(stms).first()
+    if existing_result:
+        if existing_result.date_recorded > limit_date:
+            return None
+        db.delete(existing_result)
+    db.add(new_challenge_result)
+    db.commit()
+    db.refresh(new_challenge_result)
+    return new_challenge_result
