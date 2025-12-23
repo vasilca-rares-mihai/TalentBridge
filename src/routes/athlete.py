@@ -23,7 +23,7 @@ def get_athletes(db: Session = Depends(get_db)):
             detail=f"Eroare server: {e}"
         )
 
-
+#insert a new athlete into db
 @router.post("/athletes", response_model=AthleteBase, summary="Create a new athlete")
 def insert_athlete_db(athlete_data: AthleteBase, db: Session = Depends(get_db)):
     try:
@@ -41,4 +41,25 @@ def insert_athlete_db(athlete_data: AthleteBase, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Athlete create error (api.py)"
+        )
+
+#delete an athlete
+@router.delete("/athlete_delete/${athlete_id}", summary="Delete athlete from athlete table")
+def delete_athlete(athlete_id: int, db: Session = Depends(get_db)):
+    try:
+        athlete = data_access.get_athlete_by_id(db, athlete_id)
+        if athlete is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="The athlete to be deleted was not found."
+            )
+        data_access.delete_from_attribute_table(db, athlete_id)
+        data_access.delete_from_challenge_result_table(db, athlete_id)
+        data_access.delete_from_athlete_table(db, athlete_id)
+    except HTTPException as http_ex:
+        raise http_ex
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Athlete delete error (api.py)"
         )
