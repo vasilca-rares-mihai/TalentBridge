@@ -143,6 +143,17 @@ def delete_from_attribute_table(db: Session, id_athlete: int):
         db.delete(existing_result)
         db.commit()
 
+def update_attribute(db: Session, id_athlete: int, update_data: dict):
+    db_attribute = get_attribute_by_id(db, id_athlete)
+    if not db_attribute:
+        return None
+    for key, value in update_data.items():
+        if key != "id" and value is not None:
+            setattr(db_attribute, key, value)
+    db.commit()
+    db.refresh(db_attribute)
+    return db_attribute
+
 
 
 #.................................challenge result
