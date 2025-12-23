@@ -104,3 +104,19 @@ def get_athlete_by_id(athlete_id: int, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+@router.get("/athlete/compare", summary="Compare 2 athletes")
+def compare_athletes(id_athlete1: int, id_athlete2: int, db: Session = Depends(get_db)):
+    try:
+        stats = data_access.compare_athletes_stats(db, id_athlete1, id_athlete2)
+        if stats is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="datele n au fost gasite"
+            )
+        return stats
+    except HTTPException as http_ex:
+        raise http_ex
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
