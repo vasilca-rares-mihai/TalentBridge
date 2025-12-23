@@ -61,6 +61,7 @@ def delete_athlete(athlete_id: int, db: Session = Depends(get_db)):
     except HTTPException as http_ex:
         raise http_ex
     except Exception as e:
+        print(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Athlete delete error (api.py)"
@@ -81,6 +82,25 @@ def search_athletes(db: Session = Depends(get_db), field_position: Optional[Posi
     except HTTPException as http_ex:
         raise http_ex
     except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+@router.get("/athletes/{id}", response_model=AthleteBase, summary="Get athlete id from athlete table")
+def get_athlete_by_id(athlete_id: int, db: Session = Depends(get_db)):
+    try:
+        athlete = data_access.get_athlete_by_id(db, athlete_id)
+        if athlete is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="athlete not found"
+            )
+        return athlete
+    except HTTPException as http_ex:
+        raise http_ex
+    except Exception as e:
+        print(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
