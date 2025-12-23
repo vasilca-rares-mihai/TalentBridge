@@ -186,6 +186,18 @@ def create_challenge_result(db: Session, id_challenge: int, id_athlete: int, res
 
 #....................................challenge.....................................
 
+def get_challenge_by_id(db: Session, id_challenge: int) -> str:
+    stms = select(Challenge).where(Challenge.id_challenge == id_challenge)
+    return db.scalars(stms).one()
+
+def delete_from_challenge_table(db: Session, id_challenge: int):
+    stms = select(Challenge).where(Challenge.id_challenge == id_challenge)
+    existing_result = db.scalars(stms).first()
+    if existing_result:
+        db.delete(existing_result)
+        db.commit()
+
+
 def create_challenge(db: Session, challenge: Challenge):
     new_challenge = Challenge(
         challenge_name = challenge.challenge_name,
