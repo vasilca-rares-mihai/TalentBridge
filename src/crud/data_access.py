@@ -2,12 +2,12 @@ from typing import List
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from models.sql_models import Athlete, Attribute, ChallengeResult
+from models.sql_models import Athlete, Attribute, ChallengeResult, Challenge
 from typing import Optional
 from utils.enums import GenderEnum, PositionsEnum, WeakFootEnum
 from datetime import date, timedelta
 
-#....................................................athletes utils
+#....................................................athletes utils..........................................
 def list_athletes(db: Session) -> List[Athlete]:
     stms = select(Athlete)
     return db.scalars(stms).all()
@@ -106,7 +106,7 @@ def compare_athletes_stats(db: Session, id_athlete1: int, id_athlete2: int):
     return comparison_result
 
 
-#................................attribute
+#................................attribute.................................................................
 def create_attribute(db: Session, id_athlete: int):
     attributes = Attribute(
         athlete_id= id_athlete,
@@ -157,7 +157,7 @@ def update_attribute(db: Session, id_athlete: int, update_data: dict):
 
 
 
-#.................................challenge result
+#.................................challenge result..........................................................
 def delete_from_challenge_result_table(db: Session, id_athlete: int):
     stms = select(ChallengeResult).where(ChallengeResult.athlete_id == id_athlete)
     existing_result = db.scalars(stms).first()
@@ -183,3 +183,14 @@ def create_challenge_result(db: Session, id_challenge: int, id_athlete: int, res
     db.commit()
     db.refresh(new_challenge_result)
     return new_challenge_result
+
+#....................................challenge.....................................
+
+def create_challenge(db: Session, challenge: Challenge):
+    new_challenge = Challenge(
+        challenge_name = challenge.challenge_name,
+        unit_of_measure = challenge.unit_of_measure
+    )
+    db.add(new_challenge)
+    db.commit()
+    db.refresh(new_challenge)
