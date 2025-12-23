@@ -68,6 +68,43 @@ def list_athletes_by_filter(db: Session, field_position: Optional[PositionsEnum]
 
     return db.scalars(stms).all()
 
+def compare_athletes_stats(db: Session, id_athlete1: int, id_athlete2: int):
+    athlete1 = get_athlete_by_id(db, id_athlete1)
+    athlete2 = get_athlete_by_id(db, id_athlete2)
+
+    if not athlete1 or not athlete2:
+        return None
+    if not athlete1.attributes or not athlete2.attributes:
+        return {"error": "One of the athletes does not have the attributes set"}
+
+    stats_to_compare = [
+        "acceleration", "sprint_speed", "finishing", "shot_power", "long_shots", "penalties", "short_pass", "long_pass", "agility", "balance", "ball_control", "dribbling", "heading_acc", "jumping", "stamina", "strength"
+    ]
+    comparison_result = {}
+
+    attribute1 = get_attribute_by_id(db, id_athlete1)
+    attribute2 = get_attribute_by_id(db, id_athlete2)
+
+    for stat in stats_to_compare:
+        val1 = getattr(attribute1, stat, 0) or 0
+        val2 = getattr(attribute2, stat, 0) or 0
+        if val1 > val2:
+            mesaj = f"{athlete1.first_name} e mai bun (+{val1 - val2})"
+        elif val2 > val1:
+            mesaj = f"{athlete2.first_name} e mai bun (+{val2 - val1})"
+        else:
+            mesaj = "Eq"
+
+        comparison_result[stat] = mesaj
+
+    comparison_result["athletes"] = {
+        "athlete_1_name": athlete1.first_name,
+        "athlete_2_name": athlete2.first_name
+    }
+
+    return comparison_result
+
+
 #................................attribute
 def create_attribute(db: Session, id_athlete: int):
     attributes = Attribute(
@@ -92,6 +129,11 @@ def create_attribute(db: Session, id_athlete: int):
     db.add(attributes)
     db.commit()
     db.refresh(attributes)
+
+
+def get_attribute_by_id(db: Session, athlete_id: int) -> Attribute:
+    stms = select(Attribute).where(Attribute.athlete_id == athlete_id)
+    return db.scalars(stms).one()
 
 
 def delete_from_attribute_table(db: Session, id_athlete: int):
