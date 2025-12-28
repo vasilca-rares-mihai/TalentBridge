@@ -2,7 +2,7 @@ from typing import List
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from models.sql_models import Athlete, Attribute, ChallengeResult, Challenge
+from models.sql_models import Athlete, Attribute, ChallengeResult, Challenge, Users
 from typing import Optional
 from utils.enums import GenderEnum, PositionsEnum, WeakFootEnum
 from datetime import date, timedelta
@@ -206,3 +206,15 @@ def create_challenge(db: Session, challenge: Challenge):
     db.add(new_challenge)
     db.commit()
     db.refresh(new_challenge)
+
+#..........................user..........................
+def create_user(db, email, password, role):
+    new_user = Users(
+        email= email,
+        password_hash = password,
+        role = role
+    )
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
