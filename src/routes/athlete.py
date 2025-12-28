@@ -25,9 +25,9 @@ def get_athletes(db: Session = Depends(get_db)):
 
 
 @router.post("/athletes", response_model=AthleteBase, summary="Create a new athlete")
-def insert_athlete_db(athlete_data: AthleteBase, db: Session = Depends(get_db)):
+def insert_athlete_db(athlete_data: AthleteBase, email: str, db: Session = Depends(get_db)):
     try:
-        athlete = data_access.create_athlete(db, athlete_data)
+        athlete = data_access.create_athlete(db, athlete_data, email)
         return athlete
     except IntegrityError as e:
         db.rollback()
@@ -42,3 +42,4 @@ def insert_athlete_db(athlete_data: AthleteBase, db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Athlete create error (api.py)"
         )
+
