@@ -19,3 +19,8 @@ class PositionsEnum(str, Enum):
 class WeakFootEnum(str, Enum):
     left = 'left'
     right = 'right'
+
+class RolesEnum(str, Enum):
+    admin = 'admin'
+    user = 'user'
+    football_club = 'football_club'

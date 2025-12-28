@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr, field_validator, Field
 from typing import Optional, List
 from datetime import date
-from utils.enums import GenderEnum, PositionsEnum, WeakFootEnum
+from utils.enums import GenderEnum, PositionsEnum, WeakFootEnum, RolesEnum
 import re
 
 
@@ -100,8 +100,6 @@ class AthleteBase(BaseModel):
     country: str = Field(..., min_length=1)
     region: str = Field(..., min_length=1)
     city: str = Field(..., min_length=1)
-    email: str
-
     phone_number: str = Field(..., min_length=1)
     date_of_birth: date
 
@@ -113,18 +111,10 @@ class AthleteBase(BaseModel):
             raise ValueError("Height incorrect format")
         return v
 
-    @field_validator('email')
-    @classmethod
-    def email_validator(cls, v):
-        email_regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
-        if not re.match(email_regex, v):
-            raise ValueError("Email incorrect format (ex: nume@domeniu.com)")
-        return v
-
 
 
 class AthleteCreate(AthleteBase):
-    first_name: str
+    email: str
     pass
 
 
@@ -154,3 +144,29 @@ class Athlete(AthleteBase):
     class Config:
         from_attributes = True
 
+
+
+class UsersBase(BaseModel):
+    email: str
+    role: Optional[str] = "user"
+
+    @field_validator('email')
+    @classmethod
+    def email_validator(cls, v):
+        email_regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+        if not re.match(email_regex, v):
+            raise ValueError("Email incorrect format (ex: nume@domeniu.com)")
+        return v
+
+    @field_validator('role')
+    @classmethod
+    def role_validator(cls, v):
+        if v not in RolesEnum:
+            raise ValueError(f"Role must be one of {RolesEnum}")
+        return v
+
+
+class UsersUpdate(BaseModel):
+    email: Optional[str] = None
+    role: Optional[str] = None
+    password_hash: Optional[str] = None
