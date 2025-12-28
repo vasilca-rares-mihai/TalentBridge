@@ -27,9 +27,9 @@ def get_athletes(db: Session = Depends(get_db)):
 
 #insert a new athlete into db
 @router.post("/athletes", response_model=AthleteBase, summary="Create a new athlete")
-def insert_athlete_db(athlete_data: AthleteBase, db: Session = Depends(get_db)):
+def insert_athlete_db(athlete_data: AthleteBase, email: str, db: Session = Depends(get_db)):
     try:
-        athlete = data_access.create_athlete(db, athlete_data)
+        athlete = data_access.create_athlete(db, athlete_data, email)
         return athlete
     except IntegrityError as e:
         db.rollback()
@@ -43,80 +43,4 @@ def insert_athlete_db(athlete_data: AthleteBase, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Athlete create error (api.py)"
-        )
-
-#delete an athlete
-@router.delete("/athlete_delete/${athlete_id}", summary="Delete athlete from athlete table")
-def delete_athlete(athlete_id: int, db: Session = Depends(get_db)):
-    try:
-        athlete = data_access.get_athlete_by_id(db, athlete_id)
-        if athlete is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="The athlete to be deleted was not found."
-            )
-        data_access.delete_from_attribute_table(db, athlete_id)
-        data_access.delete_from_challenge_result_table(db, athlete_id)
-        data_access.delete_from_athlete_table(db, athlete_id)
-    except HTTPException as http_ex:
-        raise http_ex
-    except Exception as e:
-        print(e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Athlete delete error (api.py)"
-        )
-
-#search athlete by filter
-@router.get("/athletes/search", response_model=List[AthleteBase], summary= "*FOOTBALL CLUB ONLY* Search athlete by filters")
-def search_athletes(db: Session = Depends(get_db), field_position: Optional[PositionsEnum] = None, age: Optional[int] = None, gender: Optional[GenderEnum] = None, weak_foot: Optional[WeakFootEnum] = None, height: Optional[float] = None, weight: Optional[float] = None, country: Optional[str] = None):
-
-    try:
-        athletes = data_access.list_athletes_by_filter(db, field_position, age, gender, weak_foot, height, weight, country)
-        if athletes is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="athletes not found"
-            )
-        return athletes
-    except HTTPException as http_ex:
-        raise http_ex
-    except Exception as e:
-        print(e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-
-@router.get("/athletes/{id}", response_model=AthleteBase, summary="Get athlete id from athlete table")
-def get_athlete_by_id(athlete_id: int, db: Session = Depends(get_db)):
-    try:
-        athlete = data_access.get_athlete_by_id(db, athlete_id)
-        if athlete is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="athlete not found"
-            )
-        return athlete
-    except HTTPException as http_ex:
-        raise http_ex
-    except Exception as e:
-        print(e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
-@router.get("/athlete/compare", summary="Compare 2 athletes")
-def compare_athletes(id_athlete1: int, id_athlete2: int, db: Session = Depends(get_db)):
-    try:
-        stats = data_access.compare_athletes_stats(db, id_athlete1, id_athlete2)
-        if stats is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="datele n au fost gasite"
-            )
-        return stats
-    except HTTPException as http_ex:
-        raise http_ex
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
