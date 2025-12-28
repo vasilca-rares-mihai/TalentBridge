@@ -22,13 +22,13 @@ class Athlete(Base):
     country = Column(String(100), nullable=True)
     region = Column(String(100), nullable=True)
     city = Column(String(100), nullable=True)
-    email = Column(String(100), nullable=True)
+    email = Column(String(255), ForeignKey('users.email'), nullable=False)
     phone_number = Column(String(20), nullable=True)
     date_of_birth = Column(Date, nullable=True)
 
     attributes = relationship("Attribute", back_populates="athlete", cascade="all, delete-orphan")
     results = relationship("ChallengeResult", back_populates="athlete", cascade="all, delete-orphan")
-
+    user = relationship("Users", primaryjoin="Athlete.email == Users.email", backref="athlete_profile")
 
 class Challenge(Base):
     __tablename__ = "challenge"
@@ -79,3 +79,12 @@ class Attribute(Base):
     strength = Column(Integer, nullable=True)
 
     athlete = relationship("Athlete", back_populates="attributes")
+
+
+class Users(Base):
+    __tablename__ = 'users'
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    email = Column(String(255), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(String(20), nullable=False)
