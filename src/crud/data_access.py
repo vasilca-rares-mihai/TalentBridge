@@ -214,7 +214,11 @@ def create_user(db, email, password, role):
         password_hash = password,
         role = role
     )
-
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
+
+def find_user(db: Session, email: str):
+    stms = select(Users).where(Users.email == email)
+    return db.scalars(stms).one_or_none()
+
