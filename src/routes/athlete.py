@@ -45,7 +45,6 @@ def get_athletes(db: Session = Depends(get_db), current_user: dict = Depends(get
         )
 
 #insert a new athlete into db
-@router.post("/athletes", response_model=AthleteBase, summary="Create a new athlete")
 def insert_athlete_db(athlete_data: AthleteBase, email: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user.get("role") != "admin" and email != current_user.get("email"):
         raise HTTPException(
@@ -129,3 +128,75 @@ def delete_athlete(email: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Athlete delete error (api.py)"
         )
+
+@router.get("/athletes/{id}", response_model=AthleteBase, summary="*ADMIN ONLY* Get athlete id from athlete table")
+def get_athlete_by_id(athlete_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don t have access to search an athlete by id"
+        )
+    try:
+        athlete = data_access.get_athlete_by_id(db, athlete_id)
+        if athlete is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="athlete not found"
+            )
+        return athlete
+    except HTTPException as http_ex:
+        raise http_ex
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    except SQLAlchemyError as e:
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error"
+        )
+    except HTTPException as e:
+        raise e
+
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Athlete delete error (api.py)"
+        )
+
+
+@router.get("/athlete/compare", summary="*FOOTBALL CLUB ONLY* Compare 2 athletes")
+def compare_athletes(id_athlete1: int, id_athlete2: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") != "football_club":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don t have access to compare 2 athletes"
+        )
+    try:
+        stats = data_access.compare_athletes_stats(db, id_athlete1, id_athlete2)
+        if stats is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="datele n au fost gasite"
+            )
+        return stats
+
+    except SQLAlchemyError as e:
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error"
+        )
+    except HTTPException as e:
+        raise e
+
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Athlete delete error (api.py)"
+        )
+
