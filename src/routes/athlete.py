@@ -14,12 +14,12 @@ from crud.security import get_current_user
 app = FastAPI()
 router = APIRouter(prefix="/api/athlete", tags=["Athlete"])
 
-@router.get("/athletes", response_model=List[AthleteBase], summary="*ADMIN ONLY* Get all athletes")
+@router.get("/athletes", response_model=List[AthleteBase], summary="*ADMIN OR FOOTBALL CLUB ACCESS* Get all athletes")
 def get_athletes(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user.get("role") not in ["admin", "football_club"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don t have acces to list of athletes."
+            detail="You don t have access to list of athletes."
         )
     try:
         athletes = data_access.list_athletes(db)
@@ -46,20 +46,42 @@ def get_athletes(db: Session = Depends(get_db), current_user: dict = Depends(get
 
 #insert a new athlete into db
 @router.post("/athletes", response_model=AthleteBase, summary="Create a new athlete")
-def insert_athlete_db(athlete_data: AthleteBase, email: str, db: Session = Depends(get_db)):
+def insert_athlete_db(athlete_data: AthleteBase, email: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    print(email, current_user.get("email"))
+    if current_user.get("role") != "admin" and email != current_user.get("email"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don t have access to create an other athlete",
+        )
     try:
         athlete = data_access.create_athlete(db, athlete_data, email)
         return athlete
     except IntegrityError as e:
         db.rollback()
-        print(f"error: {e}")
+        error_msg = str(e.orig)
+        print(error_msg)
+        if "foreign key constraint fails" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unable to create athlete profile. user account does not exist"
+            )
+
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="phone number or email already exists"
+            detail="An athlete with this phone number or email already exists"
         )
-    except Exception as e:
-        print(e)
+    except SQLAlchemyError as e:
+        db.rollback()
+        print(f"Database error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Athlete create error (api.py)"
+            detail="Database error"
         )
+    except Exception as e:
+        db.rollback()
+        print(f"error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Server error: {e}"
+        )
+

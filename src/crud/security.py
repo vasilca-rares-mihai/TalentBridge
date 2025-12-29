@@ -23,11 +23,12 @@ def verify_password(password_clara: str, password_din_db: str) -> bool:
         password_din_db.encode('utf-8')
     )
 
-def create_jws_token(user_id: int, role: str) -> str:
+def create_jws_token(user_id: int, role: str, email: str) -> str:
     now = datetime.datetime.utcnow()
     payload = {
         "iss": ISSUER,
         "sub":str (user_id),
+        "email": email,
         "exp": now + datetime.timedelta(minutes=60),
         "jti": str(uuid.uuid4()),
         "role": role
@@ -65,5 +66,4 @@ def get_current_user(res: HTTPAuthorizationCredentials = Depends(security)):
             detail=error,
             headers={"WWW-Authenticate": "Bearer"},
         )
-
     return payload

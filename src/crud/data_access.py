@@ -33,9 +33,8 @@ def create_athlete(db: Session, athlete: Athlete, email: str):
     db.add(new_athlete)
     db.commit()
     db.refresh(new_athlete)
-    create_attribute(db, new_athlete.id_athlete)
-
     return new_athlete
+
 
 def get_athlete_by_id(db: Session, athlete_id: int) -> Athlete:
     stms = select(Athlete).where(Athlete.id_athlete == athlete_id)
@@ -130,6 +129,8 @@ def create_attribute(db: Session, id_athlete: int):
     db.add(attributes)
     db.commit()
     db.refresh(attributes)
+
+    return attributes
 
 
 def get_attribute_by_id(db: Session, athlete_id: int) -> Attribute:

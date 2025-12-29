@@ -13,13 +13,15 @@ from utils.enums import RolesEnum
 app = FastAPI()
 router = APIRouter(prefix="/api/users", tags=["Users"])
 
-@router.post("/user", summary="Create a user-athlete account")
+@router.post("/user/athlete", summary="Create a user-athlete account")
 def create_user_account(athlete_data: AthleteBase, email: str, password: str, db: Session = Depends(get_db)):
     try:
         role = RolesEnum.athlete
         password_hash = hash_password(password)
         user = data_access.create_user(db, email, password_hash, role)
-        insert_athlete_db(athlete_data, email, db)
+        athlete = data_access.create_athlete(db, athlete_data, email)
+        attribute = data_access.create_attribute(db, athlete.id_athlete)
+        db.commit()
         return user
     except IntegrityError:
         db.rollback()
@@ -36,12 +38,13 @@ def create_user_account(athlete_data: AthleteBase, email: str, password: str, db
         )
     except Exception as e:
         print(f"Unexpected Error: {e}")
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
 
-@router.post("/admin", summary="Create an admin account")
+@router.post("/user/admin", summary="Create an admin account")
 def create_admin_account(email: str, password: str, db: Session = Depends(get_db)):
     try:
         role = RolesEnum.admin
@@ -63,12 +66,13 @@ def create_admin_account(email: str, password: str, db: Session = Depends(get_db
         )
     except Exception as e:
         print(f"Unexpected Error: {e}")
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
 
-@router.post("/football_club", summary="Create a football club account")
+@router.post("/user/football_club", summary="Create a football club account")
 def create_football_club_account(email: str, password: str, db: Session = Depends(get_db)):
     try:
         role = RolesEnum.football_club
@@ -90,6 +94,7 @@ def create_football_club_account(email: str, password: str, db: Session = Depend
         )
     except Exception as e:
         print(f"Unexpected Error: {e}")
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
@@ -112,7 +117,7 @@ def login(email: str, password: str, db: Session = Depends(get_db)):
                 detail="Internal error in security processing"
             )
         if is_valid:
-            token = create_jws_token(user.id, user.role)
+            token = create_jws_token(user.id, user.role, user.email)
             return {"access_token": token, "token_type": "bearer"}
         else:
             raise HTTPException(
