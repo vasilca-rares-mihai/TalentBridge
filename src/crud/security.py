@@ -3,6 +3,10 @@ import bcrypt
 import jwt
 import datetime
 
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from starlette import status
+
 SECRET_KEY = "RARES_TALENT_BRIDGE"
 ALGORITHM = "HS256"
 ISSUER = "http://localhost:8000"
@@ -29,3 +33,37 @@ def create_jws_token(user_id: int, role: str) -> str:
         "role": role
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+def validate_jws_token(token: str):
+    if token in token_blacklist:
+        return None, "Token has been deleted (logout)"
+
+    try:
+        decoded = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return decoded, None
+    except jwt.ExpiredSignatureError:
+        token_blacklist[token] = "expired"
+        return None, "Token has expired"
+    except jwt.InvalidTokenError:
+        return None, "Invalid token"
+
+def add_to_blacklist(token: str):
+    token_blacklist[token] = "blacklisted"
+    return True
+
+
+
+security = HTTPBearer()
+
+def get_current_user(res: HTTPAuthorizationCredentials = Depends(security)):
+    token = res.credentials
+    payload, error = validate_jws_token(token)
+
+    if error:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=error,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return payload
