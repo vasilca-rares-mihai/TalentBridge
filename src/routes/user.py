@@ -10,9 +10,9 @@ from utils.enums import RolesEnum
 app = FastAPI()
 router = APIRouter(prefix="/api/users", tags=["Users"])
 
-@router.post("/user", summary="Create a user account")
+@router.post("/user", summary="Create a user-athlete account")
 def create_user_account(athlete_data: AthleteBase, email: str, password: str, db: Session = Depends(get_db)):
-    role = RolesEnum.user
+    role = RolesEnum.athlete
     password_hash = hash_password(password)
     user = data_access.create_user(db, email, password_hash, role)
     insert_athlete_db(athlete_data, email, db)
