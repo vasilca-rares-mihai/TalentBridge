@@ -140,3 +140,27 @@ def login(email: str, password: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
+
+@router.delete("/delete/user", summary="Delete user/athlete/attribute")
+def delete_user(email: str,  db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    try:
+        user = data_access.find_user(db, email)
+        if current_user.get("role") != "admin" and user.email != current_user.get("email"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don t have access to delete an athlete"
+            )
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="The athlete to be deleted was not found."
+            )
+
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Athlete delete error (api.py)"
+        )
