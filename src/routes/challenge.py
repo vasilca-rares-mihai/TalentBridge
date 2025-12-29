@@ -40,7 +40,7 @@ def insert_challenge_result_db(id_challenge: int, id_athlete: int, result: int, 
         )
     except HTTPException as e:
         db.rollback()
-        return e
+        raise e
     except Exception as e:
         db.rollback()
         print(f"Unexpected error: {e}")
