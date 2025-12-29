@@ -47,7 +47,6 @@ def get_athletes(db: Session = Depends(get_db), current_user: dict = Depends(get
 #insert a new athlete into db
 @router.post("/athletes", response_model=AthleteBase, summary="Create a new athlete")
 def insert_athlete_db(athlete_data: AthleteBase, email: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    print(email, current_user.get("email"))
     if current_user.get("role") != "admin" and email != current_user.get("email"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -85,3 +84,33 @@ def insert_athlete_db(athlete_data: AthleteBase, email: str, db: Session = Depen
             detail=f"Server error: {e}"
         )
 
+#search athlete by filter
+@router.get("/athletes/search", response_model=List[AthleteBase], summary= "*ADMIN AND FOOTBALL CLUB ONLY* Search athlete by filters")
+def search_athletes(db: Session = Depends(get_db), field_position: Optional[PositionsEnum] = None, age: Optional[int] = None, gender: Optional[GenderEnum] = None, weak_foot: Optional[WeakFootEnum] = None, height: Optional[float] = None, weight: Optional[float] = None, country: Optional[str] = None,  current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") != "admin" and current_user.get("role") != "football_club":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don t have access to search athletes"
+        )
+    try:
+        athletes = data_access.list_athletes_by_filter(db, field_position, age, gender, weak_foot, height, weight, country)
+        if athletes is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="athletes not found"
+            )
+        return athletes
+    except SQLAlchemyError as e:
+        db.rollback()
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error"
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
