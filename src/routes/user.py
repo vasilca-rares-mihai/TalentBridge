@@ -94,3 +94,44 @@ def create_football_club_account(email: str, password: str, db: Session = Depend
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
+
+@router.post("/login", summary="Verify password and return jwt")
+def login(email: str, password: str, db: Session = Depends(get_db)):
+    try:
+        user = data_access.find_user(db, email)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        try:
+            is_valid = verify_password(password, user.password_hash)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Internal error in security processing"
+            )
+        if is_valid:
+            token = create_jws_token(user.id, user.role)
+            return {"access_token": token, "token_type": "bearer"}
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Incorrect email or password"
+            )
+
+    except SQLAlchemyError as e:
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error"
+        )
+
+    except HTTPException as e:
+        raise e
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
