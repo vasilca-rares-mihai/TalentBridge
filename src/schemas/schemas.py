@@ -170,3 +170,20 @@ class UsersUpdate(BaseModel):
     email: Optional[str] = None
     role: Optional[str] = None
     password_hash: Optional[str] = None
+
+
+
+class FootballClubBase(BaseModel):
+    name: str
+    country: Optional[str] = None
+    email: Optional[str] = None
+
+    @field_validator('email')
+    @classmethod
+    def email_validator(cls, v):
+        email_regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+        if not re.match(email_regex, v):
+            raise ValueError("Email incorrect format (ex: nume@domeniu.com)")
+        return v
+
+

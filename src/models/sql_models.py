@@ -88,3 +88,13 @@ class Users(Base):
     email = Column(String(255), unique=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False)
+
+class FootballClub(Base):
+    __tablename__ = 'football_club'
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    name = Column(String(255), unique=True, nullable=False)
+    country = Column(String(255), unique=True, nullable=False)
+    email = Column(String(255), unique=True, nullable=False)
+
+    user = relationship("Users", primaryjoin="FootballClub.email == Users.email", backref="football_club_profile")
