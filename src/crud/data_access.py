@@ -2,7 +2,7 @@ from typing import List
 
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from models.sql_models import Athlete, Attribute, ChallengeResult, Challenge, Users
+from models.sql_models import Athlete, Attribute, ChallengeResult, Challenge, Users, FootballClub
 from typing import Optional
 from utils.enums import GenderEnum, PositionsEnum, WeakFootEnum
 from datetime import date, timedelta
@@ -47,6 +47,21 @@ def delete_from_athlete_table(db: Session, id_athlete: int):
     if existing_result:
         db.delete(existing_result)
         db.commit()
+
+def delete_from_users_table(db: Session, email: str):
+    stms = select(Users).where(Users.email == email)
+    existing_result = db.scalars(stms).first()
+    if existing_result:
+        db.delete(existing_result)
+        db.commit()
+
+def delete_from_football_club_table(db: Session, id: int):
+    stms = select(FootballClub).where(FootballClub.id == id)
+    existing_result = db.scalars(stms).first()
+    if existing_result:
+        db.delete(existing_result)
+        db.commit()
+
 
 
 def list_athletes_by_filter(db: Session, field_position: Optional[PositionsEnum], max_age: Optional[int], gender: Optional[GenderEnum], weak_foot: Optional[WeakFootEnum], height: Optional[float], weight: Optional[float], country: Optional[str]) -> List[Athlete]:
@@ -224,7 +239,23 @@ def create_user(db, email, password, role):
     db.commit()
     db.refresh(new_user)
 
-def find_user(db: Session, email: str):
+def find_user_by_email(db: Session, email: str):
     stms = select(Users).where(Users.email == email)
     return db.scalars(stms).one_or_none()
 
+def get_football_club_by_id(db: Session, id_football_club: int):
+    stms = select(FootballClub).where(FootballClub.id == id_football_club)
+    return db.scalars(stms).one_or_none()
+
+
+def create_football_club(db: Session, football_club: FootballClub, email: str):
+    new_football_club = FootballClub(
+        name =  football_club.name,
+        country = football_club.country,
+        email = email
+    )
+
+    db.add(new_football_club)
+    db.commit()
+    db.refresh(new_football_club)
+    return new_football_club

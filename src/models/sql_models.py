@@ -94,7 +94,7 @@ class FootballClub(Base):
 
     id = Column(BigInteger, primary_key=True, autoincrement=True)
     name = Column(String(255), unique=True, nullable=False)
-    country = Column(String(255), unique=True, nullable=False)
-    email = Column(String(255), unique=True, nullable=False)
+    country = Column(String(255), nullable=False)
+    email = Column(String(255), ForeignKey("users.email"), unique=True, nullable=False)
 
-    user = relationship("Users", primaryjoin="FootballClub.email == Users.email", backref="football_club_profile")
+    user = relationship("Users", backref="football_club_profile")

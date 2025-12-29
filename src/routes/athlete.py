@@ -1,202 +1,226 @@
-from fastapi import FastAPI, APIRouter, Depends
+import os
+import shutil
 
-from typing import List
-from schemas.schemas import AthleteBase
-from crud import data_access
-from utils.enums import GenderEnum, PositionsEnum, WeakFootEnum
-from core.database import get_db
+from fastapi import FastAPI, APIRouter, Depends, UploadFile, File, HTTPException
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from fastapi import HTTPException, status
-from typing import Optional
+from starlette import status
+
+from core.database import get_db
+from crud import data_access
 from crud.security import get_current_user
+from utils.challenge import ANALYZERS
 
 app = FastAPI()
-router = APIRouter(prefix="/api/athlete", tags=["Athlete"])
+router = APIRouter(prefix="/api/athlete", tags=["athlete"])
 
-@router.get("/athletes", response_model=List[AthleteBase], summary="*ADMIN OR FOOTBALL CLUB ACCESS* Get all athletes")
-def get_athletes(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    if current_user.get("role") not in ["admin", "football_club"]:
+@router.post("/upload-video/", summary="*ATHLETE ONLY* Upload video")
+async def upload_video(athlete_id: int, id_challenge : int, db: Session = Depends(get_db), file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
+
+    athlete = data_access.get_athlete_by_id(db, athlete_id)
+    if current_user.get("role") != "athlete" and current_user.get("email") != athlete.email:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don t have access to list of athletes."
+            detail="You don t have access to upload a video."
         )
+    athlete = data_access.get_athlete_by_id(db, athlete_id)
+    workout_type = data_access.get_challenge_by_id(db, id_challenge).challenge_name
+    save_directory = os.path.join("videos", workout_type, str(athlete.id_athlete))
+    os.makedirs(save_directory, exist_ok=True)
+    video_name = f"{workout_type}.mp4"
+    video_path = os.path.join(save_directory, video_name)
+
     try:
-        athletes = data_access.list_athletes(db)
-        if not athletes and athletes is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No athletes found."
-            )
-        return athletes
+        with open(video_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        return {
+            "message": "Video successfully received",
+            "saved_path": video_path,
+            "filename": file.filename
+        }
     except SQLAlchemyError as e:
+        db.rollback()
         print(f"Database error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error"
+            detail="database error"
         )
     except HTTPException as e:
+        db.rollback()
         return e
     except Exception as e:
-        print(f"error: {e}")
+        db.rollback()
+        print(f"Unexpected error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Server error: {e}"
+            detail="Unexpected error"
         )
 
-#insert a new athlete into db
-def insert_athlete_db(athlete_data: AthleteBase, email: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    if current_user.get("role") != "admin" and email != current_user.get("email"):
+def insert_challenge_result_db(id_challenge: int, id_athlete: int, result: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    athlete = data_access.get_athlete_by_id(db, id_athlete)
+
+    if athlete is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The athlete was not found."
+        )
+    if current_user.get("role") != "athlete" or athlete.email != current_user.get("email"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don t have access to create an other athlete",
+            detail="You don t have access to insert a new challenge result into db.",
         )
     try:
-        athlete = data_access.create_athlete(db, athlete_data, email)
-        return athlete
-    except IntegrityError as e:
-        db.rollback()
-        error_msg = str(e.orig)
-        print(error_msg)
-        if "foreign key constraint fails" in error_msg.lower():
+        challenge = data_access.create_challenge_result(db, id_challenge, id_athlete, result)
+        if challenge is None:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Unable to create athlete profile. user account does not exist"
+                status_code=status.HTTP_409_CONFLICT,
+                detail="It hasn't been 3 months since this athlete completed this challenge."
             )
-
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An athlete with this phone number or email already exists"
-        )
+        return challenge
     except SQLAlchemyError as e:
         db.rollback()
         print(f"Database error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error"
+            detail="database error"
         )
+    except HTTPException as e:
+        db.rollback()
+        raise e
     except Exception as e:
         db.rollback()
-        print(f"error: {e}")
+        print(f"Unexpected error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Server error: {e}"
+            detail="Unexpected error"
         )
 
-#search athlete by filter
-@router.get("/athletes/search", response_model=List[AthleteBase], summary= "*ADMIN AND FOOTBALL CLUB ONLY* Search athlete by filters")
-def search_athletes(db: Session = Depends(get_db), field_position: Optional[PositionsEnum] = None, age: Optional[int] = None, gender: Optional[GenderEnum] = None, weak_foot: Optional[WeakFootEnum] = None, height: Optional[float] = None, weight: Optional[float] = None, country: Optional[str] = None,  current_user: dict = Depends(get_current_user)):
-    if current_user.get("role") != "admin" and current_user.get("role") != "football_club":
+
+@router.post("/analyze", summary="*ATHLETE ONLY* Run analysis on an uploaded video")
+def run_analysis_route(id_athlete: int, id_challenge: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    athlete = data_access.get_athlete_by_id(db, id_athlete)
+    print(current_user.get("email"), athlete.email)
+    if current_user.get("email") != athlete.email:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don t have access to search athletes"
+            detail="You don t have access to analyze a video.",
         )
+    workout_type = data_access.get_challenge_by_id(db, id_challenge).challenge_name
+    save_directory = os.path.join("videos", workout_type, str(athlete.id_athlete))
+    os.makedirs(save_directory, exist_ok=True)
+    video_name = f"{workout_type}.mp4"
+    video_path = os.path.join(save_directory, video_name)
+
+    if not os.path.exists(video_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"folder '{video_name}' does not exist"
+        )
+
+    if not workout_type:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Type '{workout_type}' does not exist."
+        )
+
+    if not athlete:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Id athlete {id_athlete} does not  exist."
+        )
+
     try:
-        athletes = data_access.list_athletes_by_filter(db, field_position, age, gender, weak_foot, height, weight, country)
-        if athletes is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="athletes not found"
-            )
-        return athletes
+        AnalyzerClass = ANALYZERS[workout_type]
+        analyzer = AnalyzerClass(video_path)
+        analysis_result = analyzer.analyze(athlete)
+        print(analysis_result)
+        if os.path.exists(video_path):
+            os.remove(video_path)
+        #def insert_challenge_result_db(id_challenge: int, id_athlete: int, result: int, db: Session = Depends(get_db)):
+        insert_challenge_result_db(id_challenge, athlete.id_athlete, analysis_result, db, current_user)
+
     except SQLAlchemyError as e:
         db.rollback()
         print(f"Database error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error"
+            detail="database error"
         )
     except HTTPException as e:
+        db.rollback()
         raise e
     except Exception as e:
-        print(e)
+        db.rollback()
+        print(f"Unexpected error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unexpected error"
         )
 
-def delete_athlete(email: str, db: Session = Depends(get_db)):
+@router.get("/get/attributes", summary="Get athlete's attributes")
+def get_athlete_attributes(id_athlete: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
-        athlete = data_access.find_athlete_by_email(db, email)
-        data_access.delete_from_attribute_table(db, athlete.athlete_id)
-        data_access.delete_from_challenge_result_table(db, athlete.athlete_id)
-        data_access.delete_from_athlete_table(db, athlete.athlete_id)
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        print(e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Athlete delete error (api.py)"
-        )
-
-@router.get("/athletes/{id}", response_model=AthleteBase, summary="*ADMIN ONLY* Get athlete id from athlete table")
-def get_athlete_by_id(athlete_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    if current_user.get("role") != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don t have access to search an athlete by id"
-        )
-    try:
-        athlete = data_access.get_athlete_by_id(db, athlete_id)
+        athlete = data_access.get_athlete_by_id(db, id_athlete)
+        if current_user.get("role") != "admin" and athlete.email != current_user.get("email"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don t have accessto see athlete's attribute"
+            )
         if athlete is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="athlete not found"
+                detail="The athlete was not found."
             )
-        return athlete
-    except HTTPException as http_ex:
-        raise http_ex
-    except Exception as e:
-        print(e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+        attributes = athlete.attributes
+        return attributes
     except SQLAlchemyError as e:
         print(f"Database error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error"
+            detail="database error"
         )
     except HTTPException as e:
         raise e
-
     except Exception as e:
         print(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Athlete delete error (api.py)"
+            detail="Server error"
         )
 
-
-@router.get("/athlete/compare", summary="*FOOTBALL CLUB ONLY* Compare 2 athletes")
-def compare_athletes(id_athlete1: int, id_athlete2: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    if current_user.get("role") != "football_club":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don t have access to compare 2 athletes"
-        )
+@router.delete("/delete/athlete", summary="Delete user/athlete/attribute")
+def delete_athlete(id_athlete: int,  db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
-        stats = data_access.compare_athletes_stats(db, id_athlete1, id_athlete2)
-        if stats is None:
+        athlete = data_access.get_athlete_by_id(db, id_athlete)
+        if current_user.get("role") != "admin" and athlete.email != current_user.get("email"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don t have access to delete an athlete"
+            )
+        if athlete is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="datele n au fost gasite"
+                detail="The athlete to be deleted was not found."
             )
-        return stats
+
+        data_access.delete_from_challenge_result_table(db, athlete.id_athlete)
+        data_access.delete_from_attribute_table(db, athlete.id_athlete)
+        data_access.delete_from_athlete_table(db, athlete.id_athlete)
+        data_access.delete_from_users_table(db, athlete.email)
 
     except SQLAlchemyError as e:
+        db.rollback()
         print(f"Database error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Database error"
+            detail="database error"
         )
     except HTTPException as e:
         raise e
-
     except Exception as e:
         print(e)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Athlete delete error (api.py)"
+            detail="Server error"
         )
-

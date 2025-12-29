@@ -1,17 +1,18 @@
-from fastapi import FastAPI, Depends, APIRouter, HTTPException
-from sqlalchemy.exc import IntegrityError, SQLAlchemyError
+from sqlite3 import IntegrityError
+
+from fastapi import FastAPI, APIRouter, Depends, HTTPException
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 from starlette import status
 
-from crud import data_access
 from core.database import get_db
-from sqlalchemy.orm import Session
-from schemas.schemas import AthleteBase
-from crud.security import *
-from routes.athlete import insert_athlete_db
+from crud import data_access
+from crud.security import hash_password, verify_password, create_jws_token
+from schemas.schemas import AthleteBase, FootballClubBase
 from utils.enums import RolesEnum
 
 app = FastAPI()
-router = APIRouter(prefix="/api/users", tags=["Users"])
+router = APIRouter(prefix="/api/unauthenticated", tags=["unauthenticated"])
 
 @router.post("/user/athlete", summary="Create a user-athlete account")
 def create_user_account(athlete_data: AthleteBase, email: str, password: str, db: Session = Depends(get_db)):
@@ -19,38 +20,13 @@ def create_user_account(athlete_data: AthleteBase, email: str, password: str, db
         role = RolesEnum.athlete
         password_hash = hash_password(password)
         user = data_access.create_user(db, email, password_hash, role)
+
         athlete = data_access.create_athlete(db, athlete_data, email)
         attribute = data_access.create_attribute(db, athlete.id_athlete)
+
         db.commit()
         return user
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An account with this email already exists"
-        )
-    except SQLAlchemyError as e:
-        db.rollback()
-        print(f"Database Error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while saving data to the database"
-        )
-    except Exception as e:
-        print(f"Unexpected Error: {e}")
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal server error"
-        )
 
-@router.post("/user/admin", summary="Create an admin account")
-def create_admin_account(email: str, password: str, db: Session = Depends(get_db)):
-    try:
-        role = RolesEnum.admin
-        password_hash = hash_password(password)
-        admin = data_access.create_user(db, email, password_hash, role)
-        return admin
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -73,12 +49,17 @@ def create_admin_account(email: str, password: str, db: Session = Depends(get_db
         )
 
 @router.post("/user/football_club", summary="Create a football club account")
-def create_football_club_account(email: str, password: str, db: Session = Depends(get_db)):
+def create_football_club_account(football_club_data: FootballClubBase, email: str, password: str, db: Session = Depends(get_db)):
     try:
         role = RolesEnum.football_club
         password_hash = hash_password(password)
-        football_club = data_access.create_user(db, email, password_hash, role)
-        return football_club
+        user = data_access.create_user(db, email, password_hash, role)
+
+        football_club = data_access.create_football_club(db, football_club_data, email)
+
+        db.commit()
+        return user
+
     except IntegrityError:
         db.rollback()
         raise HTTPException(
@@ -103,7 +84,7 @@ def create_football_club_account(email: str, password: str, db: Session = Depend
 @router.post("/login", summary="Verify password and return jwt")
 def login(email: str, password: str, db: Session = Depends(get_db)):
     try:
-        user = data_access.find_user(db, email)
+        user = data_access.find_user_by_email(db, email)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -139,28 +120,4 @@ def login(email: str, password: str, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
-        )
-
-@router.delete("/delete/user", summary="Delete user/athlete/attribute")
-def delete_user(email: str,  db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    try:
-        user = data_access.find_user(db, email)
-        if current_user.get("role") != "admin" and user.email != current_user.get("email"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don t have access to delete an athlete"
-            )
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="The athlete to be deleted was not found."
-            )
-
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        print(e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Athlete delete error (api.py)"
         )

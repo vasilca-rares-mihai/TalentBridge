@@ -176,6 +176,9 @@ class UsersUpdate(BaseModel):
 class FootballClubBase(BaseModel):
     name: str
     country: Optional[str] = None
+
+
+class FootballClubCreate(FootballClubBase):
     email: Optional[str] = None
 
     @field_validator('email')
@@ -185,5 +188,3 @@ class FootballClubBase(BaseModel):
         if not re.match(email_regex, v):
             raise ValueError("Email incorrect format (ex: nume@domeniu.com)")
         return v
-
-

@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends, status
-from routes import athlete, attribute, challenge, video, user
+from routes import unauthenticated, admin, athlete, football_club
 from crud.security import security
 
 app = FastAPI(title="API TalentBridge")
@@ -9,11 +9,10 @@ def protected_router():
     return {"message": "true"}
 
 
+app.include_router(unauthenticated.router)
+app.include_router(admin.router)
 app.include_router(athlete.router)
-app.include_router(attribute.router)
-app.include_router(video.router)
-app.include_router(challenge.router)
-app.include_router(user.router)
+app.include_router(football_club.router)
 
 
 #uvicorn main:app --reload
