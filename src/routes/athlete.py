@@ -114,3 +114,18 @@ def search_athletes(db: Session = Depends(get_db), field_position: Optional[Posi
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
+def delete_athlete(email: str, db: Session = Depends(get_db)):
+    try:
+        athlete = data_access.find_athlete_by_email(db, email)
+        data_access.delete_from_attribute_table(db, athlete.athlete_id)
+        data_access.delete_from_challenge_result_table(db, athlete.athlete_id)
+        data_access.delete_from_athlete_table(db, athlete.athlete_id)
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Athlete delete error (api.py)"
+        )

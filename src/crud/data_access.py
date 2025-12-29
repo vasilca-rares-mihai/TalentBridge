@@ -105,6 +105,11 @@ def compare_athletes_stats(db: Session, id_athlete1: int, id_athlete2: int):
     return comparison_result
 
 
+def find_athlete_by_email(db: Session, email: str):
+    stms = select(Athlete).where(Users.email == email)
+    return db.scalars(stms).one_or_none()
+
+
 #................................attribute.................................................................
 def create_attribute(db: Session, id_athlete: int):
     attributes = Attribute(
