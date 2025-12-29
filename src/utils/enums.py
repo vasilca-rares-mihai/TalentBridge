@@ -22,5 +22,5 @@ class WeakFootEnum(str, Enum):
 
 class RolesEnum(str, Enum):
     admin = 'admin'
-    user = 'user'
+    athlete = 'athlete'
     football_club = 'football_club'

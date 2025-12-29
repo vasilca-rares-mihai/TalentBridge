@@ -12,7 +12,7 @@ def list_athletes(db: Session) -> List[Athlete]:
     stms = select(Athlete)
     return db.scalars(stms).all()
 
-def create_athlete(db: Session, athlete: Athlete):
+def create_athlete(db: Session, athlete: Athlete, email: str):
     new_athlete = Athlete(
         first_name= athlete.first_name,
         second_name = athlete.second_name,
@@ -25,7 +25,7 @@ def create_athlete(db: Session, athlete: Athlete):
         country = athlete.country,
         region = athlete.region,
         city = athlete.city,
-        email = athlete.email,
+        email = email,
         phone_number = athlete.phone_number,
         date_of_birth = athlete.date_of_birth,
     )
