@@ -8,7 +8,7 @@ class Athlete(Base):
     __tablename__ = "athlete"
     __table_args__ = {'extend_existing': True}
 
-    id_athlete = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey('users.id'), primary_key=True)
     first_name = Column(String(100), nullable=False)
     second_name = Column(String(100), nullable=True)
     field_position = Column(Enum(PositionsEnum), nullable=False)
@@ -22,13 +22,12 @@ class Athlete(Base):
     country = Column(String(100), nullable=True)
     region = Column(String(100), nullable=True)
     city = Column(String(100), nullable=True)
-    email = Column(String(255), ForeignKey('users.email'), nullable=False)
     phone_number = Column(String(20), nullable=True)
     date_of_birth = Column(Date, nullable=True)
 
+    user = relationship("Users", back_populates="athlete_profile")
     attributes = relationship("Attribute", back_populates="athlete", cascade="all, delete-orphan")
     results = relationship("ChallengeResult", back_populates="athlete", cascade="all, delete-orphan")
-    user = relationship("Users", primaryjoin="Athlete.email == Users.email", backref="athlete_profile")
 
 class Challenge(Base):
     __tablename__ = "challenge"
@@ -45,7 +44,7 @@ class ChallengeResult(Base):
     __table_args__ = {'extend_existing': True}
     id_result = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
 
-    athlete_id = Column(BigInteger, ForeignKey("athlete.id_athlete"), nullable=False)
+    user_id = Column(BigInteger, ForeignKey("athlete.user_id"), nullable=False)
     challenge_id = Column(BigInteger, ForeignKey("challenge.id_challenge"), nullable=False)
 
     result_value = Column(Float, nullable=False)
@@ -59,7 +58,7 @@ class Attribute(Base):
     __tablename__ = "attribute"
     __table_args__ = {'extend_existing': True}
 
-    athlete_id = Column(BigInteger, ForeignKey("athlete.id_athlete"), primary_key=True, nullable=False)
+    user_id = Column(BigInteger, ForeignKey("athlete.user_id"), primary_key=True, nullable=False)
 
     acceleration = Column(Integer, nullable=True)
     sprint_speed = Column(Integer, nullable=True)
@@ -80,12 +79,13 @@ class Attribute(Base):
 
     athlete = relationship("Athlete", back_populates="attributes")
 
+
 class FootballClub(Base):
     __tablename__ = 'football_club'
+    __table_args__ = {'extend_existing': True}
 
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.id"), primary_key=True)
     name = Column(String(255), unique=True, nullable=False)
     country = Column(String(255), nullable=False)
-    email = Column(String(255), ForeignKey("users.email"), unique=True, nullable=False)
 
-    user = relationship("Users", backref="football_club_profile")
+    user = relationship("Users", back_populates="football_club_profile")

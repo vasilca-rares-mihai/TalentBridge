@@ -8,13 +8,13 @@ from starlette import status
 from shared.core.database import get_db
 from shared.crud import data_access
 from shared.crud.security import get_current_user
-from shared.schemas.schemas import AthleteBase
+from shared.schemas.schemas import AthleteBase, AthleteSearched
 from shared.utils.enums import PositionsEnum, GenderEnum, WeakFootEnum
 
 app = FastAPI()
 router = APIRouter(prefix="/api/football_club", tags=["FootballClub"])
 
-@router.get("/athlete/compare", summary="*FOOTBALL CLUB ONLY* Compare 2 athletes")
+@router.get("/compare/athletes", summary="FOOTBALL CLUB: Compare 2 athletes")
 def compare_athletes(id_athlete1: int, id_athlete2: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user.get("role") != "football_club":
         raise HTTPException(
@@ -46,15 +46,15 @@ def compare_athletes(id_athlete1: int, id_athlete2: int, db: Session = Depends(g
             detail="Server error"
         )
 
-@router.get("/athletes/search", response_model=List[AthleteBase], summary= "*ADMIN AND FOOTBALL CLUB ONLY* Search athlete by filters")
-def search_athletes(db: Session = Depends(get_db), field_position: Optional[PositionsEnum] = None, age: Optional[int] = None, gender: Optional[GenderEnum] = None, weak_foot: Optional[WeakFootEnum] = None, height: Optional[float] = None, weight: Optional[float] = None, country: Optional[str] = None,  current_user: dict = Depends(get_current_user)):
+@router.post("/search/athlete", summary= "FOOTBALL CLUB & ADMIN: Search an athlete by filters")
+def search_athletes(athlete_searched: AthleteSearched, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user.get("role") != "admin" and current_user.get("role") != "football_club":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don t have access to search athletes"
         )
     try:
-        athletes = data_access.list_athletes_by_filter(db, field_position, age, gender, weak_foot, height, weight, country)
+        athletes = data_access.list_athletes_by_filter(db, athlete_searched)
         if athletes is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -77,11 +77,17 @@ def search_athletes(db: Session = Depends(get_db), field_position: Optional[Posi
         )
 
 
-@router.delete("/delete/football_club", summary="Delete football_club")
+@router.delete("/delete/football_club/{user_id}", summary="Delete football_club")
 def delete_football_club(id_football_club: int,  db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
+        user = data_access.find_user_by_id(db, id_football_club)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="user not found"
+            )
         football_club = data_access.get_football_club_by_id(db, id_football_club)
-        if current_user.get("role") != "admin" and football_club.email != current_user.get("email"):
+        if current_user.get("role") != "admin" and football_club.user_id != int(current_user.get("sub")):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don t have access to delete an football_club"
@@ -93,8 +99,8 @@ def delete_football_club(id_football_club: int,  db: Session = Depends(get_db), 
             )
 
         data_access.delete_from_football_club_table(db, id_football_club)
-        data_access.delete_from_users_table(db, football_club.email)
-
+        data_access.delete_from_users_table(db, user.email)
+        db.commit()
 
     except SQLAlchemyError as e:
         db.rollback()

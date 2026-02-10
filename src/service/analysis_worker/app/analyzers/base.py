@@ -28,8 +28,7 @@ class VideoAnalyzer(ABC):
         self.athlete_weight = None
 
 
-        if not self.cap.isOpened():
-            raise FileNotFoundError(f"Error: Could not open the video file: {video_path}")
+
 
     def __del__(self):
         self.cap.release()
@@ -76,12 +75,6 @@ class VideoAnalyzer(ABC):
                     self.checkRep(landmarks_data)
 
                     mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
-
-
-                cv2.imshow(self.window_name, image)
-
-                if cv2.waitKey(10) & 0xFF == ord('q'):
-                    break
 
         print(f"Analysis completed. Total repetitions: {self.counter}")
         self.cap.release()

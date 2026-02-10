@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator, Field
+from pydantic import BaseModel, EmailStr, field_validator, Field, model_validator
 from typing import Optional, List
 from datetime import date
 from shared.utils.enums import GenderEnum, PositionsEnum, WeakFootEnum, RolesEnum
@@ -29,7 +29,7 @@ class ChallengeResultBase(BaseModel):
 
 
 class ChallengeResultCreate(ChallengeResultBase):
-    athlete_id: int
+    user_id: int
     challenge_id: int
 
 
@@ -81,7 +81,7 @@ class AttributeUpdate(BaseModel):
     strength: Optional[int] = None
 
 class Attribute(AttributeBase):
-    athlete_id: int
+    user_id: int
 
     class Config:
         from_attributes = True
@@ -91,9 +91,9 @@ class Attribute(AttributeBase):
 class AthleteBase(BaseModel):
     first_name: str = Field(..., min_length=1)
     second_name: str = Field(..., min_length=1)
+    age: int
     field_position: PositionsEnum
     weak_foot: WeakFootEnum
-    age: int
     gender: GenderEnum
     height: float
     weight: float
@@ -103,19 +103,34 @@ class AthleteBase(BaseModel):
     phone_number: str = Field(..., min_length=1)
     date_of_birth: date
 
+    @model_validator(mode='after')
+    def verify_age_match(self) -> 'Athlete':
+        dob = self.date_of_birth
+        today = date.today()
+        calculated_age = today.year - dob.year - (
+                (today.month, today.day) < (dob.month, dob.day)
+        )
+        if self.age != calculated_age:
+            raise ValueError(
+                f"age ({self.age}) does not match birthdate (should be {calculated_age}))"
+            )
+        return self
 
     @field_validator('height')
     @classmethod
     def height_validator(cls, v):
         if v < 0 or v > 3:
-            raise ValueError("Height incorrect format")
+            raise ValueError("Height incorrect format, Value must be between 0 and 3")
+        return v
+    @field_validator('weight')
+    @classmethod
+    def weight_validator(cls, v):
+        if v < 0 or v > 180:
+            raise ValueError("Weight incorrect format, Value must be between 0 and 180)")
         return v
 
 
 
-class AthleteCreate(AthleteBase):
-    email: str
-    pass
 
 
 class AthleteUpdate(BaseModel):
@@ -123,20 +138,39 @@ class AthleteUpdate(BaseModel):
     second_name: Optional[str] = None
     field_position: Optional[PositionsEnum] = None
     weak_foot: Optional[WeakFootEnum] = None
-    age: Optional[int] = None
-    gender: Optional[GenderEnum] = None
     height: Optional[float] = None
     weight: Optional[float] = None
     country: Optional[str] = None
     region: Optional[str] = None
     city: Optional[str] = None
-    email: Optional[str] = None
     phone_number: Optional[str] = None
     date_of_birth: Optional[date] = None
+    @field_validator('field_position', 'weak_foot', 'date_of_birth', mode='before')
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if v == "":
+            return None
+        return v
 
+class AthleteSearched(BaseModel):
+    first_name: Optional[str] = None
+    second_name: Optional[str] = None
+    field_position: Optional[PositionsEnum] = None
+    weak_foot: Optional[WeakFootEnum] = None
+    country: Optional[str] = None
+
+    age_range: Optional[List[float]] = Field(None, min_items=2, max_items=2)
+    height_range: Optional[List[float]] = Field(None, min_items=2, max_items=2)
+    weight_range: Optional[List[float]] = Field(None, min_items=2, max_items=2)
+    @field_validator('field_position', 'weak_foot', mode='before')
+    @classmethod
+    def empty_str_to_none(cls, v):
+        if v == "":
+            return None
+        return v
 
 class Athlete(AthleteBase):
-    id_athlete: int
+    user_id: int
 
     attributes: List[Attribute] = []
     results: List[ChallengeResult] = []
@@ -150,13 +184,3 @@ class FootballClubBase(BaseModel):
     country: Optional[str] = None
 
 
-class FootballClubCreate(FootballClubBase):
-    email: Optional[str] = None
-
-    @field_validator('email')
-    @classmethod
-    def email_validator(cls, v):
-        email_regex = r"^[\w\.-]+@[\w\.-]+\.\w+$"
-        if not re.match(email_regex, v):
-            raise ValueError("Email incorrect format (ex: nume@domeniu.com)")
-        return v

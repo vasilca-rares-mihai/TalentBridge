@@ -25,14 +25,16 @@ def analyze_video_task(id_athlete: int, id_challenge: int):
             return
 
         workout_type = challenge.challenge_name
-        video_path = os.path.join(videos_dir, workout_type, str(athlete.id_athlete), f"{workout_type}.mp4")
+        video_path = os.path.join(videos_dir, workout_type, str(athlete.user_id), f"{workout_type}.mp4")
 
         AnalyzerClass = ANALYZERS.get(workout_type)
         analyzer = AnalyzerClass(video_path)
         analysis_result = analyzer.analyze(athlete)
 
-        data_access.create_challenge_result(db, id_challenge, athlete.id_athlete, analysis_result)
+        data_access.create_challenge_result(db, id_challenge, athlete.user_id, analysis_result)
 
+        if os.path.exists(video_path):
+            os.remove(video_path)
         print(f"Task successfully completed for the athlete {id_athlete}!")
 
     except Exception as e:

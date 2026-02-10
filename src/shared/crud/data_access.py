@@ -1,12 +1,18 @@
 from typing import List
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy import select
+
+from shared.crud.security import security
+from shared.crud import security
 from shared.models.sql_models import Athlete, Attribute, ChallengeResult, Challenge, FootballClub
+from shared.schemas.schemas import AthleteUpdate, AthleteSearched
 from typing import Optional
-from shared.utils.enums import GenderEnum, PositionsEnum, WeakFootEnum
+from shared.utils.enums import GenderEnum, PositionsEnum, WeakFootEnum, RolesEnum
 from datetime import date, timedelta
 from service.auth_service.app.models.sql_models import Users
+from shared.utils.challenge import defpassword
 
 
 #....................................................athletes utils..........................................
@@ -14,8 +20,9 @@ def list_athletes(db: Session) -> List[Athlete]:
     stms = select(Athlete)
     return db.scalars(stms).all()
 
-def create_athlete(db: Session, athlete: Athlete, email: str):
+def create_athlete(db: Session, athlete: Athlete, id_u: int):
     new_athlete = Athlete(
+        user_id = id_u,
         first_name= athlete.first_name,
         second_name = athlete.second_name,
         field_position = athlete.field_position,
@@ -27,63 +34,85 @@ def create_athlete(db: Session, athlete: Athlete, email: str):
         country = athlete.country,
         region = athlete.region,
         city = athlete.city,
-        email = email,
         phone_number = athlete.phone_number,
         date_of_birth = athlete.date_of_birth,
     )
 
     db.add(new_athlete)
-    db.commit()
-    db.refresh(new_athlete)
     return new_athlete
 
 
-def get_athlete_by_id(db: Session, athlete_id: int) -> Athlete:
-    stms = select(Athlete).where(Athlete.id_athlete == athlete_id)
+def get_athlete_by_id(db: Session, id_u: int) -> Athlete:
+    stms = select(Athlete).where(Athlete.user_id == id_u)
     return db.scalars(stms).first()
 
 
-def delete_from_athlete_table(db: Session, id_athlete: int):
-    stms = select(Athlete).where(Athlete.id_athlete == id_athlete)
+
+def delete_from_athlete_table(db: Session, id_u: int):
+    stms = select(Athlete).where(Athlete.user_id == id_u)
     existing_result = db.scalars(stms).first()
     if existing_result:
         db.delete(existing_result)
+
+def update_user_info(payload: AthleteUpdate, db: Session, id_u: int):
+    stms = select(Athlete).where(Athlete.user_id == id_u)
+    athlete = db.scalars(stms).first()
+    if athlete:
+        athlete_updated = payload.model_dump(exclude_unset=True)
+        for key, value in athlete_updated.items():
+            if value not in [None, "", 0]:
+                setattr(athlete, key, value)
+        if "date_of_birth" in athlete_updated:
+            dob = athlete.date_of_birth
+            today = date.today()
+            calculated_age = today.year - dob.year - (
+                    (today.month, today.day) < (dob.month, dob.day)
+            )
+            athlete.age = calculated_age
+
+        db.add(athlete)
         db.commit()
+        db.refresh(athlete)
+    return athlete
+
+
 
 def delete_from_users_table(db: Session, email: str):
     stms = select(Users).where(Users.email == email)
     existing_result = db.scalars(stms).first()
     if existing_result:
         db.delete(existing_result)
-        db.commit()
 
 def delete_from_football_club_table(db: Session, id: int):
-    stms = select(FootballClub).where(FootballClub.id == id)
+    stms = select(FootballClub).where(FootballClub.user_id == id)
     existing_result = db.scalars(stms).first()
     if existing_result:
         db.delete(existing_result)
-        db.commit()
 
 
+from sqlalchemy import select
 
-def list_athletes_by_filter(db: Session, field_position: Optional[PositionsEnum], max_age: Optional[int], gender: Optional[GenderEnum], weak_foot: Optional[WeakFootEnum], height: Optional[float], weight: Optional[float], country: Optional[str]) -> List[Athlete]:
-    stms = select(Athlete)
-    if weak_foot is not None:
-        stms = stms.where(Athlete.weak_foot == weak_foot)
-    if gender is not None:
-        stms = stms.where(Athlete.gender == gender)
-    if field_position is not None:
-        stms = stms.where(Athlete.field_position == field_position)
-    if max_age is not None:
-        stms = stms.where(Athlete.age < max_age)
-    if height:
-        stms = stms.where(Athlete.height < height)
-    if weight:
-        stms = stms.where(Athlete.weight < weight)
-    if country:
-        stms = stms.where(Athlete.country == country)
 
-    return db.scalars(stms).all()
+def list_athletes_by_filter(db: Session, athlete_searched: AthleteSearched) -> List[Athlete]:
+    athletes = select(Athlete)
+
+    search_params = athlete_searched.model_dump(exclude_unset=True)
+
+    valid_columns = Athlete.__table__.columns.keys()
+
+    for key, value in search_params.items():
+        if value in [None, "", 0, [0, 0]]:
+            continue
+
+        if key in valid_columns:
+            athletes = athletes.where(getattr(Athlete, key) == value)
+        elif key.endswith("_range") and isinstance(value, list) and len(value) == 2:
+            column_name = key.replace("_range", "")
+            if column_name in valid_columns:
+                col = getattr(Athlete, column_name)
+                athletes = athletes.where(col.between(value[0], value[1]))
+
+    return db.scalars(athletes).all()
 
 def compare_athletes_stats(db: Session, id_athlete1: int, id_athlete2: int):
     athlete1 = get_athlete_by_id(db, id_athlete1)
@@ -128,9 +157,9 @@ def find_athlete_by_email(db: Session, email: str):
 
 
 #................................attribute.................................................................
-def create_attribute(db: Session, id_athlete: int):
+def create_attribute(db: Session, id_u: int):
     attributes = Attribute(
-        athlete_id= id_athlete,
+        user_id= id_u,
         acceleration = 0,
         sprint_speed = 0,
         finishing = 0,
@@ -149,23 +178,21 @@ def create_attribute(db: Session, id_athlete: int):
         strength = 0
     )
     db.add(attributes)
-    db.commit()
-    db.refresh(attributes)
 
     return attributes
 
 
-def get_attribute_by_id(db: Session, athlete_id: int) -> Attribute:
-    stms = select(Attribute).where(Attribute.athlete_id == athlete_id)
+def get_attribute_by_id(db: Session, id_u: int) -> Attribute:
+    stms = select(Attribute).where(Attribute.user_id == id_u)
     return db.scalars(stms).one()
 
 
-def delete_from_attribute_table(db: Session, id_athlete: int):
-    stms = select(Attribute).where(Attribute.athlete_id == id_athlete)
+def delete_from_attribute_table(db: Session, id_u: int):
+    stms = select(Attribute).where(Attribute.user_id == id_u)
     existing_result = db.scalars(stms).first()
     if existing_result:
         db.delete(existing_result)
-        db.commit()
+
 
 def update_attribute(db: Session, id_athlete: int, update_data: dict):
     db_attribute = get_attribute_by_id(db, id_athlete)
@@ -181,22 +208,21 @@ def update_attribute(db: Session, id_athlete: int, update_data: dict):
 
 
 #.................................challenge result..........................................................
-def delete_from_challenge_result_table(db: Session, id_athlete: int):
-    stms = select(ChallengeResult).where(ChallengeResult.athlete_id == id_athlete)
-    existing_result = db.scalars(stms).first()
-    if existing_result:
-        db.delete(existing_result)
-        db.commit()
+def delete_from_challenge_result_table(db: Session, id_u: int):
+        stms = select(ChallengeResult).where(ChallengeResult.user_id == id_u)
+        existing_result = db.scalars(stms).first()
+        if existing_result:
+            db.delete(existing_result)
 
-def create_challenge_result(db: Session, id_challenge: int, id_athlete: int, result: int):
+def create_challenge_result(db: Session, id_challenge: int, id_u: int, result: int):
     new_challenge_result = ChallengeResult(
-        athlete_id = id_athlete,
+        user_id = id_u,
         challenge_id = id_challenge,
         result_value = result,
         date_recorded = date.today()
     )
     limit_date = date.today() - timedelta(days=90)
-    stms = select(ChallengeResult).where(ChallengeResult.athlete_id == id_athlete,  ChallengeResult.challenge_id == id_challenge)
+    stms = select(ChallengeResult).where(ChallengeResult.user_id == id_u,  ChallengeResult.challenge_id == id_challenge)
     existing_result = db.scalars(stms).first()
     if existing_result:
         if existing_result.date_recorded > limit_date:
@@ -204,14 +230,13 @@ def create_challenge_result(db: Session, id_challenge: int, id_athlete: int, res
         db.delete(existing_result)
     db.add(new_challenge_result)
     db.commit()
-    db.refresh(new_challenge_result)
     return new_challenge_result
 
 #....................................challenge.....................................
 
 def get_challenge_by_id(db: Session, id_challenge: int) -> str:
     stms = select(Challenge).where(Challenge.id_challenge == id_challenge)
-    return db.scalars(stms).one()
+    return db.scalars(stms).first()
 
 def delete_from_challenge_table(db: Session, id_challenge: int):
     stms = select(Challenge).where(Challenge.id_challenge == id_challenge)
@@ -227,8 +252,7 @@ def create_challenge(db: Session, challenge: Challenge):
         unit_of_measure = challenge.unit_of_measure
     )
     db.add(new_challenge)
-    db.commit()
-    db.refresh(new_challenge)
+    return new_challenge
 
 #..........................user..........................
 def create_user(db, email, password, role):
@@ -238,26 +262,40 @@ def create_user(db, email, password, role):
         role = role
     )
     db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
+    return new_user
 
 def find_user_by_email(db: Session, email: str):
     stms = select(Users).where(Users.email == email)
-    return db.scalars(stms).one_or_none()
+    return db.scalars(stms).first()
+
+def find_user_by_id(db: Session, id_u: int):
+    stms = select(Users).where(Users.id == id_u)
+    return db.scalars(stms).first()
+
 
 def get_football_club_by_id(db: Session, id_football_club: int):
-    stms = select(FootballClub).where(FootballClub.id == id_football_club)
-    return db.scalars(stms).one_or_none()
+    stms = select(FootballClub).where(FootballClub.user_id == id_football_club)
+    return db.scalars(stms).first()
 
 
-def create_football_club(db: Session, football_club: FootballClub, email: str):
+def create_football_club(db: Session, football_club: FootballClub, id_u: int):
     new_football_club = FootballClub(
+        user_id = id_u,
         name =  football_club.name,
-        country = football_club.country,
-        email = email
+        country = football_club.country
     )
 
     db.add(new_football_club)
-    db.commit()
-    db.refresh(new_football_club)
     return new_football_club
+
+
+def first_admin(db: Session):
+    stms = select(Users).where(Users.role == "admin")
+    if db.scalars(stms).first() is None:
+        new_admin = Users(
+            email = "admin@test.ro",
+            password_hash = security.hash_password(defpassword),
+            role = RolesEnum.admin
+        )
+    db.add(new_admin)
+    return new_admin

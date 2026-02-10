@@ -12,15 +12,24 @@ from shared.schemas.schemas import AthleteBase, Challenge
 from shared.utils.enums import RolesEnum
 
 app = FastAPI()
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+router = APIRouter(prefix="/api", tags=["admin"])
 
 
-@router.post("/user/admin", summary="Create an admin account")
-def create_admin_account(email: str, password: str, db: Session = Depends(get_db)):
+@router.post("/create/admin", summary="ADMIN: create an admin account")
+def create_admin_account(email: str, password: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") not in ["admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don t have access to list of athletes."
+        )
     try:
         role = RolesEnum.admin
         password_hash = hash_password(password)
+
         admin = data_access.create_user(db, email, password_hash, role)
+
+        db.commit()
+        db.refresh(admin)
         return admin
     except IntegrityError:
         db.rollback()
@@ -44,7 +53,7 @@ def create_admin_account(email: str, password: str, db: Session = Depends(get_db
         )
 
 
-@router.get("/athletes", response_model=List[AthleteBase], summary="*ADMIN OR FOOTBALL CLUB ACCESS* Get all athletes")
+@router.get("/athletes", response_model=List[AthleteBase], summary="ADMIN & FOOTBALL CLUB: get all athletes from db")
 def get_athletes(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user.get("role") not in ["admin", "football_club"]:
         raise HTTPException(
@@ -76,7 +85,7 @@ def get_athletes(db: Session = Depends(get_db), current_user: dict = Depends(get
 
 
 
-@router.post("/challenge", summary="*ADMIN ONLY* Create a new challenge")
+@router.post("/create/challenge", summary="ADMIN: create a new challenge")
 def create_challenge(challenge: Challenge, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user.get("role") != "admin":
         raise HTTPException(
@@ -85,7 +94,11 @@ def create_challenge(challenge: Challenge, db: Session = Depends(get_db), curren
         )
     try:
         new_challenge = data_access.create_challenge(db, challenge)
+
+        db.commit()
+        db.refresh(new_challenge)
         return new_challenge
+
     except SQLAlchemyError as e:
         db.rollback()
         print(f"Database error: {e}")
@@ -105,7 +118,7 @@ def create_challenge(challenge: Challenge, db: Session = Depends(get_db), curren
         )
 
 
-@router.delete("/challenge/{challenge_id}", summary="*ADMIN ONLY* Delete a challenge")
+@router.delete("/delete/challenge/{challenge_id}", summary="ADMIN: Delete a challenge")
 def delete_challenge(challenge_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user.get("role") != "admin":
         raise HTTPException(

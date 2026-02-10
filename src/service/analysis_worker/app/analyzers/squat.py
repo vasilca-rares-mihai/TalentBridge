@@ -47,7 +47,6 @@ class SquatAnalyzer(VideoAnalyzer):
         if self.angle1 > ExerciseThresholds.SQUAT_UP_ANGLE and self.angle2 > ExerciseThresholds.SQUAT_UP_ANGLE and self.stage == "down":
             self.stage = "up"
             self.counter += 1
-
         # print only when the counter has changed the value
         if self.prev_counter != self.counter:
             print(f"Squats: {self.counter}")

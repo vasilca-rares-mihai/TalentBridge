@@ -7,3 +7,6 @@ ANALYZERS = {
     'vertical jump': VerticalJumpAnalyzer, #5
 }
 videos_dir = "service/shared_storage/videos"
+
+#default password when trying to create first admin account
+defpassword = "admin"
