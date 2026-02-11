@@ -12,16 +12,13 @@
       <change beforePath="$PROJECT_DIR$/../data/persoane.txt" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/../requirements.txt" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/service/auth_service/app/schemas/auth_schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/service/auth_service/app/schemas/auth_schemas.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/service/core_service/app/routes/admin.py" beforeDir="false" afterPath="$PROJECT_DIR$/service/core_service/app/routes/admin.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/core_service/app/routes/athlete.py" beforeDir="false" afterPath="$PROJECT_DIR$/service/core_service/app/routes/athlete.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/core_service/app/routes/football_club.py" beforeDir="false" afterPath="$PROJECT_DIR$/service/core_service/app/routes/football_club.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/aria_log.00000001" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/aria_log.00000001" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/aria_log_control" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/aria_log_control" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/athlete.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/athlete.ibd" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/attribute.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/attribute.ibd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/challenge.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/challenge.ibd" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/challenge_result.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/challenge_result.ibd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/football_club.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/football_club.ibd" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/users.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/users.ibd" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/ib_buffer_pool" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/ib_buffer_pool" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/ib_logfile0" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/ib_logfile0" afterDir="false" />
@@ -32,7 +29,6 @@
       <change beforePath="$PROJECT_DIR$/service/mysql_data/undo002" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/undo002" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/undo003" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/undo003" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/shared/crud/data_access.py" beforeDir="false" afterPath="$PROJECT_DIR$/shared/crud/data_access.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/shared/crud/security.py" beforeDir="false" afterPath="$PROJECT_DIR$/shared/crud/security.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/shared/models/sql_models.py" beforeDir="false" afterPath="$PROJECT_DIR$/shared/models/sql_models.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/shared/schemas/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/shared/schemas/schemas.py" afterDir="false" />
     </list>

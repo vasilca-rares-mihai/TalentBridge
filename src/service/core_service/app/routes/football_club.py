@@ -8,7 +8,7 @@ from starlette import status
 from shared.core.database import get_db
 from shared.crud import data_access
 from shared.crud.security import get_current_user
-from shared.schemas.schemas import AthleteBase, AthleteSearched
+from shared.schemas.schemas import AthleteBase, AthleteSearched, FavoriteAthlete
 from shared.utils.enums import PositionsEnum, GenderEnum, WeakFootEnum
 
 app = FastAPI()
@@ -117,5 +117,69 @@ def delete_football_club(id_football_club: int,  db: Session = Depends(get_db), 
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Server error"
         )
+
+@router.post("/scouting/watchlist/{athlete_id}", summary="FOOTBALL CLUB: add to watchlist")
+def watchlist(athlete_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        athlete = data_access.get_athlete_by_id(db, athlete_id)
+        if athlete is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="athlete not found"
+            )
+        data_access.add_to_watchlist(db, int(current_user.get("sub")), athlete_id)
+
+        db.commit()
+        db.refresh(athlete)
+        return athlete
+    except SQLAlchemyError as e:
+        db.rollback()
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="database error"
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="server error"
+        )
+
+
+@router.delete("/scouting/watchlist/{athlete_id}", summary="FOOTBALL CLUB: delete from watchlist")
+def watchlist_delete(athlete_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        athlete = data_access.get_athlete_by_id(db, athlete_id)
+        if athlete is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="athlete not found"
+            )
+        delete_state = data_access.delete_from_watchlist(db, int(current_user.get("sub")), athlete_id)
+
+        db.commit()
+        if delete_state:
+            return f"Athlete {athlete.first_name} removed from watchlist"
+        return f"Athlete {athlete.first_name} is in your football club's watchlist"
+    except SQLAlchemyError as e:
+        db.rollback()
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="database error"
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="server error"
+        )
+
+
 
 

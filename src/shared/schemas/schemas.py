@@ -129,10 +129,6 @@ class AthleteBase(BaseModel):
             raise ValueError("Weight incorrect format, Value must be between 0 and 180)")
         return v
 
-
-
-
-
 class AthleteUpdate(BaseModel):
     first_name: Optional[str] = None
     second_name: Optional[str] = None
@@ -178,10 +174,16 @@ class Athlete(AthleteBase):
     class Config:
         from_attributes = True
 
-
+########################################
 class FootballClubBase(BaseModel):
     name: str
     country: Optional[str] = None
+
+###############################
+
+class FavoriteAthlete(BaseModel):
+    club_id: int
+    athlete_id: int
 
 
 

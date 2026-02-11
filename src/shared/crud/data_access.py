@@ -6,7 +6,7 @@ from sqlalchemy import select, delete
 
 from shared.crud.security import security
 from shared.crud import security
-from shared.models.sql_models import Athlete, Attribute, ChallengeResult, Challenge, FootballClub
+from shared.models.sql_models import Athlete, Attribute, ChallengeResult, Challenge, FootballClub, FavoriteAthlete
 from shared.schemas.schemas import AthleteUpdate, AthleteSearched
 from typing import Optional
 from shared.utils.enums import GenderEnum, PositionsEnum, WeakFootEnum, RolesEnum
@@ -86,9 +86,13 @@ def all_or_completed_challenges(db, user_id, index):
                 completed_challenges.append(db_challenge)
 
     if index == 0:
+        return all_challenges
+    elif index == 1:
         rez = list(set(all_challenges) - set(completed_challenges))
         return rez
-    return completed_challenges
+    elif index == 2:
+        return completed_challenges
+    return None
 
 
 def update_user_info(payload: AthleteUpdate, db: Session, id_u: int):
@@ -337,3 +341,31 @@ def first_admin(db: Session):
         )
     db.add(new_admin)
     return new_admin
+
+
+def add_to_watchlist(db: Session, club_id: int, athlete_id: int):
+    new_fav_athlete = FavoriteAthlete(
+        club_id = club_id,
+        athlete_id = athlete_id
+    )
+    db.add(new_fav_athlete)
+    return new_fav_athlete
+
+def delete_from_watchlist(db: Session, club_id: int, athlete_id: int):
+    stms = select(FavoriteAthlete).where(FavoriteAthlete.club_id == club_id, FavoriteAthlete.athlete_id == athlete_id)
+    rez = db.scalars(stms).first()
+    if rez:
+        db.delete(rez)
+        return True
+    return False
+
+def get_leaderboard(db: Session, challenge_id: int):
+    top = []
+    stms = select(ChallengeResult).where(ChallengeResult.challenge_id == challenge_id).order_by(ChallengeResult.result_value.desc())
+    results = db.scalars(stms)
+    for result in results:
+        athlete = get_athlete_by_id(db, result.user_id)
+        top.append({"first_name": athlete.first_name, "second_name": athlete.second_name, "result_value": result.result_value, "date_recorded": result.date_recorded})
+        if top.count == 10:
+            return top
+    return top

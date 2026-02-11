@@ -20,15 +20,21 @@ router = APIRouter(prefix="/api/athlete", tags=["athlete"])
 def analyze_video_task(id_athlete, id_challenge):
     pass
 
-@router.get("/me", summary="ATHLETE: Return user info")
-def me(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
-    if current_user.get("role") != "athlete":
+@router.get("/me", summary="ATHLETE & FOOTBALL CLUB: Return user info")
+def me(id_athlete: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    user = data_access.find_user_by_id(db, id_athlete)
+    if user.role not in ["athlete", "football_club"]:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="You don t have access to get user info."
         )
     try:
-        athlete = data_access.get_athlete_by_id(db, current_user.get("sub"))
+        athlete = data_access.get_athlete_by_id(db, id_athlete)
+        if athlete is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="The athlete was not found."
+            )
         return {
             "role": current_user.get("role"),
             "email": current_user.get("email"),
@@ -50,22 +56,16 @@ def me(db: Session = Depends(get_db), current_user: dict = Depends(get_current_u
         return e
 
 
-@router.get("/attributes/me", summary="ATHLETE: return my attributes")
+@router.get("/attributes/me", summary="ATHLETE & FOOTBALL CLUB: return my attributes")
 def get_athlete_attributes(id_athlete: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
         user = data_access.find_user_by_id(db, id_athlete)
-        if user.role != "athlete":
+        if user.role not in ["athlete", "football_club"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"User with id:{user.id} is not an athlete"
             )
         athlete = data_access.get_athlete_by_id(db, id_athlete)
-        if current_user.get("role") not in ["admin", "football_club"] and athlete.user_id != int(current_user.get("sub")):
-
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don t have access to see athlete's attribute"
-            )
         if athlete is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -315,8 +315,8 @@ def delete_athlete(id_athlete: int,  db: Session = Depends(get_db), current_user
         )
 
 
-@router.get("/challenges/locked", summary="ATHLETE: return completed challenges (locked for 3 months)")
-def get_locked_challenges(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+@router.get("/challenges", summary="ATHLETE: return challenges. index = 0 for all challenges. index = 1 for uncompleted challenges. index = 2 fro completed challenges")
+def get_locked_challenges(index: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
         locked_challenges = []
         user = data_access.find_user_by_id(db, current_user.get("sub"))
@@ -325,7 +325,7 @@ def get_locked_challenges(db: Session = Depends(get_db), current_user: dict = De
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="user was not found."
             )
-        challenges = data_access.all_or_completed_challenges(db, user.id, 1)
+        challenges = data_access.all_or_completed_challenges(db, user.id, index)
         for challenge in challenges:
             rez = data_access.get_challenge_by_id(db, challenge.id_challenge) #challenge table
             locked_challenges.append(rez)
@@ -346,3 +346,7 @@ def get_locked_challenges(db: Session = Depends(get_db), current_user: dict = De
             detail="Server error"
         )
 
+
+@router.get("/challenges/{challenment_id}/leaderboard", summary="ATHLETE & ADMIN: Leaderboard")
+def leaderboard(challenge_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    return data_access.get_leaderboard(db, challenge_id)

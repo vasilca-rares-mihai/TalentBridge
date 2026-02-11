@@ -89,3 +89,12 @@ class FootballClub(Base):
     country = Column(String(255), nullable=False)
 
     user = relationship("Users", back_populates="football_club_profile")
+
+class FavoriteAthlete(Base):
+    __tablename__ = 'favorite_athlete'
+
+    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    club_id = Column(BigInteger, ForeignKey('football_club.user_id'), nullable=False)
+    athlete_id = Column(BigInteger, ForeignKey('athlete.user_id'), nullable=False)
+
+    __table_args__ = (UniqueConstraint('club_id', 'athlete_id', name='_club_athlete_uc'),)
