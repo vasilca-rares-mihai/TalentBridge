@@ -26,5 +26,9 @@ class UsersBase(BaseModel):
 
 class UsersUpdate(BaseModel):
     email: Optional[str] = None
-    role: Optional[str] = None
     password_hash: Optional[str] = None
+
+class UserUpdatePassword(BaseModel):
+    old_password: Optional[str] = None
+    new_password: Optional[str] = None
+    new_password_confirm: Optional[str] = None

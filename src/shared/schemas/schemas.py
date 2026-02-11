@@ -184,3 +184,4 @@ class FootballClubBase(BaseModel):
     country: Optional[str] = None
 
 
+

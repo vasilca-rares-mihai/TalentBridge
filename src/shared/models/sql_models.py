@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, Enum, BigInteger
+from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, Enum, BigInteger, UniqueConstraint
 from sqlalchemy.orm import relationship
 from shared.core.database import Base
 from shared.utils.enums import GenderEnum, PositionsEnum, WeakFootEnum

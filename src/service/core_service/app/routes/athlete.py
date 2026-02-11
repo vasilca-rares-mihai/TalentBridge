@@ -313,3 +313,36 @@ def delete_athlete(id_athlete: int,  db: Session = Depends(get_db), current_user
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Server error"
         )
+
+
+@router.get("/challenges/locked", summary="ATHLETE: return completed challenges (locked for 3 months)")
+def get_locked_challenges(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    try:
+        locked_challenges = []
+        user = data_access.find_user_by_id(db, current_user.get("sub"))
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="user was not found."
+            )
+        challenges = data_access.all_or_completed_challenges(db, user.id, 1)
+        for challenge in challenges:
+            rez = data_access.get_challenge_by_id(db, challenge.id_challenge) #challenge table
+            locked_challenges.append(rez)
+        return locked_challenges
+
+    except SQLAlchemyError as e:
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="database error"
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Server error"
+        )
+

@@ -2,7 +2,7 @@ from typing import List
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, delete
 
 from shared.crud.security import security
 from shared.crud import security
@@ -53,6 +53,43 @@ def delete_from_athlete_table(db: Session, id_u: int):
     existing_result = db.scalars(stms).first()
     if existing_result:
         db.delete(existing_result)
+
+
+def delete_all(db: Session):
+    try:
+        models = [ChallengeResult, Attribute, Athlete, FootballClub, Users]
+        for model in models:
+            db.execute(delete(model))
+
+        print("All data has been successfully deleted")
+    except Exception as e:
+        db.rollback()
+        print(f"Error deleting data: {e}")
+
+def all_or_completed_challenges(db, user_id, index):
+    all_challenges= []
+    stms = select(Challenge) # challenge table
+    challenges = db.scalars(stms)
+    for challenge in challenges:
+        all_challenges.append(challenge)
+
+    limit_date = date.today() - timedelta(days=90)
+
+    completed_challenges = []
+    stms2 = select(ChallengeResult).where(ChallengeResult.user_id == user_id) #challenge result table
+    challanges2 = db.scalars(stms2)
+    for challenge in challanges2:
+        if challenge.date_recorded > limit_date:
+            stms3 = select(Challenge).where(Challenge.id_challenge == challenge.challenge_id)
+            db_challenge = db.scalars(stms3).first()
+            if db_challenge:
+                completed_challenges.append(db_challenge)
+
+    if index == 0:
+        rez = list(set(all_challenges) - set(completed_challenges))
+        return rez
+    return completed_challenges
+
 
 def update_user_info(payload: AthleteUpdate, db: Session, id_u: int):
     stms = select(Athlete).where(Athlete.user_id == id_u)
@@ -154,6 +191,7 @@ def compare_athletes_stats(db: Session, id_athlete1: int, id_athlete2: int):
 def find_athlete_by_email(db: Session, email: str):
     stms = select(Athlete).where(Users.email == email)
     return db.scalars(stms).one_or_none()
+
 
 
 #................................attribute.................................................................

@@ -67,3 +67,10 @@ def get_current_user(res: HTTPAuthorizationCredentials = Depends(security)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     return payload
+
+def passwords_match(password: str, password_confirm: str) -> str:
+    if password == password_confirm:
+        return True
+    else:
+        return False
+
