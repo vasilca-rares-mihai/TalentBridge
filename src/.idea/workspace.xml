@@ -16,15 +16,14 @@
       <change beforePath="$PROJECT_DIR$/service/core_service/app/routes/football_club.py" beforeDir="false" afterPath="$PROJECT_DIR$/service/core_service/app/routes/football_club.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/aria_log.00000001" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/aria_log.00000001" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/aria_log_control" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/aria_log_control" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/athlete.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/athlete.ibd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/attribute.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/attribute.ibd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/challenge_result.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/challenge_result.ibd" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/users.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/db_talentbridge/users.ibd" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/mysql_data/ddl_recovery.log" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/ib_buffer_pool" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/ib_buffer_pool" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/ib_logfile0" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/ib_logfile0" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/ibdata1" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/ibdata1" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/mysql_data/ibtmp1" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/mysql/innodb_index_stats.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/mysql/innodb_index_stats.ibd" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/mysql/innodb_table_stats.ibd" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/mysql/innodb_table_stats.ibd" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/mysql_data/tc.log" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/undo001" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/undo001" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/undo002" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/undo002" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service/mysql_data/undo003" beforeDir="false" afterPath="$PROJECT_DIR$/service/mysql_data/undo003" afterDir="false" />

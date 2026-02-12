@@ -1,7 +1,8 @@
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, Enum, BigInteger, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, Enum, BigInteger, UniqueConstraint, JSON
 from sqlalchemy.orm import relationship
 from shared.core.database import Base
 from shared.utils.enums import GenderEnum, PositionsEnum, WeakFootEnum
+from shared.schemas.schemas import AttributeUpdate
 
 
 class Athlete(Base):
@@ -28,6 +29,7 @@ class Athlete(Base):
     user = relationship("Users", back_populates="athlete_profile")
     attributes = relationship("Attribute", back_populates="athlete", cascade="all, delete-orphan")
     results = relationship("ChallengeResult", back_populates="athlete", cascade="all, delete-orphan")
+    applications = relationship("TrialApplications", back_populates="athlete")
 
 class Challenge(Base):
     __tablename__ = "challenge"
@@ -89,12 +91,40 @@ class FootballClub(Base):
     country = Column(String(255), nullable=False)
 
     user = relationship("Users", back_populates="football_club_profile")
+    trials = relationship("Trial", back_populates="club")
+    favorites = relationship("FavoriteAthlete", back_populates="club")
 
 class FavoriteAthlete(Base):
     __tablename__ = 'favorite_athlete'
+    __table_args__ = (UniqueConstraint('club_id', 'athlete_id', name='_club_athlete_uc'),)
 
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
     club_id = Column(BigInteger, ForeignKey('football_club.user_id'), nullable=False)
     athlete_id = Column(BigInteger, ForeignKey('athlete.user_id'), nullable=False)
 
-    __table_args__ = (UniqueConstraint('club_id', 'athlete_id', name='_club_athlete_uc'),)
+    club = relationship("FootballClub", back_populates="favorites")
+    athlete = relationship("Athlete")
+
+
+class Trial(Base):
+    __tablename__ = 'trial'
+
+    id_trial = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id_club = Column(BigInteger, ForeignKey('football_club.user_id'), nullable=False)
+    until_date = Column(Date, nullable=False)
+    info = Column(String(255), nullable=False)
+    requirements = Column(JSON, nullable=False)
+
+    club = relationship("FootballClub", back_populates="trials")
+    applications = relationship("TrialApplications", back_populates="trial", cascade="all, delete-orphan")
+
+
+class TrialApplications(Base):
+    __tablename__ = 'trial_applications'
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    id_trial = Column(BigInteger, ForeignKey('trial.id_trial'), nullable=False)
+    id_athlete = Column(BigInteger, ForeignKey('athlete.user_id'), nullable=False)
+
+    trial = relationship("Trial", back_populates="applications")
+    athlete = relationship("Athlete")

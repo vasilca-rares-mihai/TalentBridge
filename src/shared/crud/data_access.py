@@ -3,10 +3,12 @@ from typing import List
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy import select, delete
+from sqlalchemy.sql.functions import current_user
 
 from shared.crud.security import security
 from shared.crud import security
-from shared.models.sql_models import Athlete, Attribute, ChallengeResult, Challenge, FootballClub, FavoriteAthlete
+from shared.models.sql_models import Athlete, Attribute, ChallengeResult, Challenge, FootballClub, FavoriteAthlete, \
+    Trial, TrialApplications
 from shared.schemas.schemas import AthleteUpdate, AthleteSearched
 from typing import Optional
 from shared.utils.enums import GenderEnum, PositionsEnum, WeakFootEnum, RolesEnum
@@ -369,3 +371,59 @@ def get_leaderboard(db: Session, challenge_id: int):
         if top.count == 10:
             return top
     return top
+
+def create_trial(db, trials, id_club):
+    new_trial = Trial(
+        id_club = id_club,
+        until_date = trials.until_date,
+        info = trials.info,
+        requirements = trials.requirements.model_dump()
+    )
+    db.add(new_trial)
+    return new_trial
+
+def get_trial_by_id(db, id_trial: int):
+    stms = select(Trial).where(Trial.id_trial == id_trial)
+    return db.scalars(stms).first()
+
+def delete_trial(db, id_trial: int):
+    stms = select(Trial).where(Trial.id_trial == id_trial)
+    rez = db.scalars(stms).first()
+    if rez:
+        db.delete(rez)
+    return True
+
+def get_trials(db, club_id: int):
+    stms = select(Trial).where(Trial.id_club == club_id)
+    return db.scalars(stms).all()
+
+def apply_to_trial(db, id_trial, id_athlete):
+    new_application = TrialApplications(
+        id_trial = id_trial,
+        id_athlete = id_athlete
+    )
+    db.add(new_application)
+    return new_application
+
+def application_permision(db, id_trial, id_athlete):
+    stms = select(TrialApplications).where(TrialApplications.id_trial == id_trial).where(TrialApplications.id_athlete == id_athlete)
+    rez = db.scalars(stms).first()
+    if rez:
+        return True
+    return False
+
+def get_trial_application_by_id(db, id_trial, id_athlete):
+    stms = select(TrialApplications).where(TrialApplications.id_trial == id_trial).where(TrialApplications.id_athlete == id_athlete)
+    return db.scalars(stms).first()
+
+def delete_trial_application(db, trial_application):
+    db.delete(trial_application)
+    return True
+
+def get_all_trials(db):
+    stms = select(Trial).order_by(Trial.id_trial)
+    return db.scalars(stms).all()
+
+def all_applications(db, id_trial):
+    stms = select(TrialApplications).where(TrialApplications.id_trial == id_trial)
+    return db.scalars(stms).all()

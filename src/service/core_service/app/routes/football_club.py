@@ -3,12 +3,13 @@ from typing import List, Optional
 from fastapi import APIRouter, FastAPI, Depends, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.functions import current_user
 from starlette import status
 
 from shared.core.database import get_db
 from shared.crud import data_access
 from shared.crud.security import get_current_user
-from shared.schemas.schemas import AthleteBase, AthleteSearched, FavoriteAthlete
+from shared.schemas.schemas import AthleteBase, AthleteSearched, FavoriteAthlete, Trial
 from shared.utils.enums import PositionsEnum, GenderEnum, WeakFootEnum
 
 app = FastAPI()
@@ -180,6 +181,116 @@ def watchlist_delete(athlete_id: int, db: Session = Depends(get_db), current_use
             detail="server error"
         )
 
+@router.post("/publish/trial", summary="FOOTBALL CLUB: add to trial table")
+def trial(trials: Trial, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        if current_user.get("role") != "football_club":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not allowed to do this action"
+            )
+        data_access.create_trial(db, trials, int(current_user.get("sub")))
+        db.commit()
+        return "Trial added successfully"
+    except SQLAlchemyError as e:
+        db.rollback()
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="database error"
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="server error"
+        )
 
+@router.delete("/delete/trial", summary="FOOTBALL CLUB: delete from trial table")
+def delete_trial(id_trial: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        this_trial = data_access.get_trial_by_id(db, id_trial)
+        if this_trial is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="trial application was not found"
+            )
+        if current_user.get("role") != "football_club" and trial.id_club != current_user.get("sub"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not allowed to do this action"
+            )
+        trial_status = data_access.delete_trial(db, id_trial)
+        db.commit()
+        return "Trial deleted successfully"
+    except SQLAlchemyError as e:
+        db.rollback()
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="database error"
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="server error"
+        )
+
+@router.get("/my_trials", summary="FOOTBALL CLUB: get all trials")
+def my_trials(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        if current_user.get("role") not in ["football_club"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not allowed to do this action"
+            )
+        return data_access.get_trials(db, int(current_user.get("sub")))
+    except SQLAlchemyError as e:
+        db.rollback()
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="database error"
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="server error"
+        )
+
+@router.get("trial/applications/{id_trial}", summary="FOOTBALL CLUB: get trial application")
+def trial_applications(id_trial: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        this_trial = data_access.get_trial_by_id(db, id_trial)
+        if current_user.get("role") not in ["football_club"] or this_trial.id_club != int(current_user.get("sub")):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not allowed to do this action"
+            )
+        rez = data_access.all_applications(db, id_trial)
+        return rez
+    except SQLAlchemyError as e:
+        db.rollback()
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="database error"
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="server error"
+        )
 
 

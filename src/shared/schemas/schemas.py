@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, field_validator, Field, model_validator
-from typing import Optional, List
+from typing import Optional, List, Any, Dict
 from datetime import date
 from shared.utils.enums import GenderEnum, PositionsEnum, WeakFootEnum, RolesEnum
 import re
@@ -186,4 +186,12 @@ class FavoriteAthlete(BaseModel):
     athlete_id: int
 
 
+class Trial(BaseModel):
+    until_date: date
+    info: str
+    requirements: AttributeUpdate
+
+class TrialApplications(BaseModel):
+    id_trial: int
+    id_athlete: int
 
