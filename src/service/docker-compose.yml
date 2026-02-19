@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # 1. BAZA DE DATE (MariaDB)
+  #DB (MariaDB)
   talent-bridge-db:
     image: mariadb:latest
     container_name: talent-bridge-db
@@ -12,13 +12,11 @@ services:
     ports:
       - "3306:3306"
     volumes:
-      # AICI ESTE SALVAREA: Datele vor fi salvate pe PC-ul tău în folderul 'mysql_data'
-      # Astfel, chiar dacă ștergi containerul, datele rămân.
       - ./mysql_data:/var/lib/mysql
     networks:
       - tb_network
 
-  # 2. REDIS (Necesar pentru Celery Worker)
+  #REDIS
   redis:
     image: redis:alpine
     container_name: talent-bridge-redis
@@ -27,26 +25,24 @@ services:
     networks:
       - tb_network
 
-  # 3. AUTH SERVICE
+  #AUTH SERVICE
   auth_service:
     build:
-      context: ..  # Urcăm 2 nivele până în 'src' pentru a avea acces la tot codul
+      context: ..
       dockerfile: service/auth_service/Dockerfile
     container_name: tb_auth_service
     ports:
       - "8000:8000"
     volumes:
-      - ..:/app  # Montăm codul live pentru ca --reload să funcționeze când dai save
+      - ..:/app
     depends_on:
       - talent-bridge-db
     environment:
-      # Trebuie să actualizezi URL-ul bazei de date în codul tău Python!
-      # În loc de 'localhost', folosește 'talent-bridge-db'
       DATABASE_URL: mysql+pymysql://root:Rares545@talent-bridge-db/db_talentbridge
     networks:
       - tb_network
 
-  # 4. CORE SERVICE
+  #CORE SERVICE
   core_service:
     build:
       context: ..
@@ -65,7 +61,7 @@ services:
     networks:
       - tb_network
 
-  # 5. ANALYSIS WORKER (Celery)
+  #ANALYSIS WORKER (Celery)
   analysis_worker:
     build:
       context: ..
@@ -77,7 +73,6 @@ services:
       - redis
       - talent-bridge-db
     environment:
-      # Trebuie să actualizezi URL-ul de Broker în codul Python
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
       DATABASE_URL: mysql+pymysql://root:Rares545@talent-bridge-db/db_talentbridge

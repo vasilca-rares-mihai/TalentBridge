@@ -11,5 +11,4 @@ COPY . .
 
 EXPOSE 8001
 
-# FOLOSIM "python -m uvicorn"
 CMD ["python", "-m", "uvicorn", "service.core_service.app.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]

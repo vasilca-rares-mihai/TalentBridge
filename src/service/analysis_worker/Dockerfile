@@ -9,7 +9,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Nu expunem porturi pentru worker, el doar procesează task-uri
-
-# FOLOSIM "python -m celery"
 CMD ["python", "-m", "celery", "-A", "service.analysis_worker.app.worker:celery_app", "worker", "--loglevel=info", "--pool=solo", "-c", "1"]
