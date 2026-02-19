@@ -1,17 +1,167 @@
-﻿| Date | Version | Updates |
-| :--- | :---: | ---: |
-| 24.11.2025 | 1.0 | We implemented 5 types of exercises, push-ups, squats, pull-ups, treadmill running and vertical jumps + documentation in the implementation of this project |
-|  |  |  |
-|  |  |  |
-
-
 # TalentBridge 
+Last tasks: [Google Sheets](https://docs.google.com/spreadsheets/d/17YalRHokuakujgC83qbFbex8E6gTnH7TYdwfByrpPls/edit?gid=0#gid=0)
+<br>
+[Interim report not updated](https://github.com/user-attachments/files/25413252/Raport_1_licenta__Rares_Vasilca__ENG.pdf)
 
 ### Short description
-This project is a Python-based video analysis application designed to identify and evaluate athletic talent for football clubs. It employs computer vision methods to evaluate athletes physical performance and enhance optimal player-to-club pairing
+TalentBridge is an application that wants to solve the problems of current football scouting. It is a service-oriented software application that uses video analysis (MediaPipe Pose) and calculates attributes such as speed, acceleration, shot power, agility, etc., enabling athletes to be filtered based on the qualities they possess. The result is a player profile that is stored in the database for potential selection by sports clubs.
+* Biomechanical analysis: Implementing the analysis service using MediaPipe Pose to detect the 33 key points (landmarks) of the human body and interpret them depending on the exercise.
+* High-performance backend: Developing a robust API using FastAPI and securing routes through the JWT (JSON Web Token) standard.
+* Communication efficiency: Optimizing data transfer between the API service and the AI service using gRPC (Google Remote Procedure Call).
+* Automatic scoring: Creating an algorithm for assigning ratings to physical attributes (speed, shooting, passing) based on extracted data.
+
 
 ### Problems the app solves:
 TalentBridge wants to help football teams that are finding it increasingly difficult to find players compatible with their needs, but also players who are having a hard time getting noticed by teams.
+
+
+### Features
+The TalentBridge system architecture was built in a modular way, following the principles of a microservices-based architecture. As shown in Figure 1, the system consists of 3 distinct microservices: Auth Service: manages user identity and issues JWT tokens. Core Service: handles HTTP requests and the application logic (microservice explained in detail in section 2). Analysis Worker: a background service that runs the complex computer vision algorithm. The components communicate asynchronously through a message queue. This decision was made out of the need to manage limited resources efficiently. Because of the heavy data processing that takes place during a video analysis, when a large number of users
+upload a video at the same time, the server would not operate within good parameters, producing high latency. Using a message queue (implemented with Redis) brings the following benefits to the system: Analyzing a video clip with processing algorithms (MediaPipe) is a time-consuming process. In a synchronous (Request - Response) architecture, the user would have to wait with the application blocked until the analysis is completed. By doing this, the API only confirms receipt of the file (202 Accepted), freeing the user interface, while the heavy processing takes place in the background, asynchronously.
+<div align="center">
+  <img width="540" height="540" alt="Untitled" src="https://github.com/user-attachments/assets/96ebb6e9-ec82-484c-8ae3-32f4ef543e4a" />
+</div>
+<br>
+
+The analysis model is a costly operation (CPU-intensive). A synchronous (blocking) approach would have led to high response times for users. To solve this problem, I implemented the Producer-Consumer model using Redis as a message broker. The flow is as follows: The user (the athlete) uploads the challenge video via the POST/upload route. The Core Service saves the file to a directory, places a task in the Redis queue, and returns the HTTP 202 Accepted code to the athlete. The worker, which listens to the message queue, picks up the task as soon as it has free resources and starts the MediaPipe analysis. The result is then written to the database.
+<div align="center">
+  <img width="830" height="590" alt="Untitled2" src="https://github.com/user-attachments/assets/739e9d3d-fbba-4e80-a2d7-e6a60d025176" />
+</div>
+<br>
+
+### Database Tables
+
+* **users**: Stores authentication data, keeping fields such as email, password, and the user's role within the application.
+* **athlete**: When a user creates an athlete account, they complete a profile with data for this table (e.g., age, field position, country of origin, height). These details are used in the player search process based on specific filters.
+* **attribute**: Contains physical and technical data such as acceleration, finishing, agility, etc. These are initialized to 0 upon account creation and are updated with the extracted values after video analyses are completed.
+* **challenge**: Stores the types of challenges that athletes can complete. This table can only be modified by an administrator.
+* **challenge_result**: Stores the scores obtained by athletes for each challenge. A challenge result cannot be overwritten unless more than 3 months have passed since the last completed challenge of the same type.
+* **football_club**: Stores information related to football clubs that register on the platform to carry out their scouting process.
+* **trial**: Represents the selection events organized by clubs. It stores the application deadline (until_date), general info, and specific requirements (saved in JSON format to allow for flexible, dynamic filtering).
+* **trial_applications**: Manages the actual enrollments, linking an athlete to a specific trial organized by a club.
+* **favorite_athlete**: Acts as a shortlist for clubs, allowing scouts to save players of interest by storing the club ID and the athlete ID.
+
+### Relationships Between Tables
+
+* The relationships between the **users** table and the **athlete** / **football_club** tables are 1-to-1. The foreign keys are established using the primary key id from the users table (mapped to user_id), ensuring each account is uniquely associated with either an athlete or a club profile.
+* The **athlete** table has a 1-to-1 relationship with **attribute**, since an athlete has a single set of attributes. It also has a 1-to-n (one-to-many) relationship with **hallenge_result**, as an athlete can have multiple challenge results recorded over time.
+* The **challenge** table has a 1-to-n (one-to-many) relationship with **challenge_result**, because a specific challenge can be completed by multiple athletes.
+* The relationship between **football_club** and **trial** is 1-to-n (one-to-many), as a football club can organize and post multiple trials.
+* The relationship between **trial** and **athlete** is many-to-many (n-to-m), managed by the junction table **trial_applications**. An athlete can apply to multiple trials, and a trial can receive applications from multiple athletes.
+* The relationship between **football_club** and **athlete** for scouting purposes is also many-to-many (n-to-m), handled by the **favorite_athlete** junction table. A club can shortlist multiple athletes, and an athlete can be favorited by multiple clubs.
+<div align="center">
+  <img width="1526" height="863" alt="DB" src="https://github.com/user-attachments/assets/651f504c-03f3-4e63-a190-15ad489da99c" />
+</div>
+<br>
+
+
+### Requirements
+To run and develop this project locally, you will need the following installed on your PC:
+
+* **[Docker](https://docs.docker.com/get-docker/)** (și Docker Compose, care vine integrat în Docker Desktop)
+* **[Git](https://git-scm.com/)** (pentru a clona repository-ul)
+
+### Installation
+
+1. **Clone the repository:**
+```
+git clone https://github.com/vasilca-rares-mihai/TalentBridge.git
+cd TalentBridge/src/service
+```
+
+2. **Build and start the services**
+Use Docker Compose to start the entire system (API, Redis, Database, Worker) in the background:
+```
+docker compose up --build -d
+```
+
+3. Check the status of the containers:
+```
+docker compose ps
+```
+
+4. Start/Stop containers
+```
+docker compose start
+docker compose stop
+```
+
+### Usage
+**Unauthenticated:**
+* POST/api/unauthenticated/create/first_admin - creates the first admin account when no other account of this type exists in the database
+* POST/api/unauthenticated/create/athlete - creates an athlete account 
+* POST/api/unauthenticated/create/football_club - creates a football club account
+* POST/api/unauthenticated/login - login; returns a jwt token used for auth
+* POST/api/unauthenticated/logout - logout; add to blacklist jwt token
+
+**User:**
+* PUT/api/user/update/email - update a user's login email
+* PUT/api/user/update/password - update a user's login password
+
+**Admin:**
+* POST/api/create/admin - create an admin account
+* POST/api/create/challenge - create a new challenge
+* DELETE/api/delete/challenge/{challenge_id} - delete a challenge
+* DELETE/api/delete/wipe - Delete db input
+* DELETE/api/admin/delete/account - delete user account
+
+**Admin & Football Club:**
+* POST/api/athletes - get all athletes from db
+* POST/api/football_club/search/athlete - search an athlete by filters
+
+**Athlete & Football Club:**
+* GET/api/athlete/me - return user info
+* GET/api/athlete/attributes/me - return my attributes
+* GET/api/athlete/all_trials - get all trials
+* DELETE/api/football_club/delete/football_club/{user_id} - delete football_club
+
+**Athlete:**
+* PUT/api/athlete/update/me - update user info
+* POST/api/athlete/video/upload - upload video
+* GET/api/athlete/video/display/{result_id} - returns the processed video (analyzed video)
+* POST/api/athlete/video/analyze - run analysis
+* GET/api/athlete/challenge_result/{challenge_id} - get challenge result
+* GET/api/athlete/challenge_results - get all challenges results
+* DELETE/api/athlete/delete/athlete/{user_id} - delete user/athlete/attribute
+* GET/api/athlete/challenges - returns challenges. index = 0 for all challenges. index = 1 for uncompleted challenges. index = 2 fro completed challenges
+* GET/api/athlete/challenges/{challenment_id}/leaderboard - leaderboard
+* POST/api/athlete/trial/apply/{id_trial} - apply for a trial
+* DELETE/api/athlete/delete/trial/application/{id_trial} - delete a trial application
+* PUT/api/athlete/update/attributes - update user attributes
+
+
+**Football Club:**
+* GET/api/football_club/compare/athletes - compare 2 athletes
+* POST/api/football_club/scouting/watchlist/{athlete_id} - add to watchlist
+* DELETE/api/football_club/scouting/watchlist/{athlete_id} - delete from watchlist
+* POST/api/football_club/publish/tria - add to trial table
+* DELETE/api/football_club/delete/trial - delete from trial table
+* GET/api/football_club/my_trials - get all trials
+* GET/api/football_club/trial/applications/{id_trial} - get trial application
+
+
+### RESULTS AND EXPERIMENTAL VALIDATION
+A. Testing scenario For the testing part, I used test videos with a resolution of 480p at 30fps, with the tests run on the local machine.
+
+B. Visual results shows how the analysis is performed. The athlete can view their video with the MediaPipe skeleton overlaid.
+
+<img width="300" height="300" alt="71493d3efc96b15bd12aeab8d32d97b18f3a7656 " src="https://github.com/user-attachments/assets/a2848af9-d6fe-4879-bc8f-4e97ea5d8db8" />
+<img width="450" height="300" alt="cec15d7709baa1ee4f4338905280913f30f08625" src="https://github.com/user-attachments/assets/1115bdca-a501-43bb-a146-7cd37742c901" />
+
+The chart represents the evolution of the knee angle in each frame analyzed by the algorithm. On the X axis, the frames are shown, while on the Y axis, the angles formed by the quadriceps and the shin are plotted.
+
+C. Performance
+To validate the system’s scalability, I performed repeated measurements on datasets with progressively longer durations. The table below presents the execution times obtained in the test environment (CPU only)
+
+| Video duration | Processing time | Load factor |
+|:--------------:|:---------------:|:-----------:|
+| 10s            | 13.46s          | 1.34x       |
+| 20s            | 25.50s          | 1.27x       |
+| 30s            | 37.88s          | 1.26x       |
+| 60s            | 75.75s          | 1.26x       |
+| 100s           | 124.50s         | 1.24x       |
+
+
 
 ### Opinions of experienced professionals in the field
 
@@ -67,11 +217,6 @@ Answer: "If we are talking about motor skills, it is very difficult to change an
 Question: Can you tell me some simple tests through which you extract some attributes?
 Answer: "It is possible to extract some valuable information even from a slow-motion video. I'll give you an example. If an athlete is very prone to injuries despite all the tests I mentioned being within normal parameters, it is possible that these injuries are due to running biomechanics. During slow-motion running, I would look very closely at: hip flexion (if they lift the thigh sufficiently), knee extension before ground contact, dorsi-flexion at the moment the foot pushes off the ground, spine and shoulder position, if the hip internally rotates when the foot touches the ground."
 ```
-### Technologies Used
-* **Python** (Base Language)
-* **MediaPipe Pose** (For skeletal landmark detection)
-* **OpenCV** (For video processing)
-* **NumPy** (For matrix calculations and angles)
 
 ### So far:
 Exercise Evaluation: The system analyzes a range of exercises, including:
@@ -82,41 +227,6 @@ Exercise Evaluation: The system analyzes a range of exercises, including:
 -Treadmill Running
 -Vertical Jumps
 ```
-### UML diagram:
-![Descriere imagine](UML.png)
 
-### Data base:
-The database environment is built using modern virtualization, isolation, and efficiency.
-
-| Component | Role | Documentation |
-| :--- | :---: | ---: |
-| WSL 2 | Host environment for Docker on Windows. Provides a Linux kernel for optimal performance. | [Microsoft WSL Docs](https://learn.microsoft.com/en-us/windows/wsl/) |
-| Docker | Containerization platform used to package and run the MariaDB server. | [Docker Documentation](https://docs.docker.com) |
-| MariaDB | The relational database management system (RDBMS) storing all athlete and performance data. | [MariaDB Documentation](https://mariadb.com/docs/) |
-
-1. Docker and Containerization
-The core database engine is run as a Docker container using the official mariadb image.
-Isolation: The database runs in an isolated environment, preventing conflicts with other software on the host machine.
-Portability: The entire environment can be spun up on any machine running Docker using a single docker run command.
-Persistent Storage: A Docker Volume is used to ensure all data (-v mariadb_data:/var/lib/mysql) persists even if the container is stopped, updated, or removed.
-
-2. WSL 2 Integration
-For Windows users, Docker Desktop leverages Windows Subsystem for Linux (WSL) 2. This method significantly improves the performance of the Linux-based MariaDB container by utilizing a lightweight, integrated Linux kernel, offering near-native performance compared to older virtualization methods.
-
-3. Database Access
-The MariaDB container is mapped to the host machine's port 3306, allowing connection via standard tools (DBeaver, MySQL Workbench, etc.) using:
-Host: localhost
-Port: 3306
-User: root
-Database: db_talentbridge
-![Descriere imagine](DB.png)
-
-### How to run the code:
-```bash
-git clone https://github.com/vasilca-rares-mihai/TalentBridge.git
-cd nume-proiect
-
-pip install -r requirements.txt
-```
 
 
