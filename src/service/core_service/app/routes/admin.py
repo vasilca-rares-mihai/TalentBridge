@@ -282,3 +282,35 @@ def delete_db_input(db: Session = Depends(get_db), current_user: dict = Depends(
             detail="Unexpected error"
         )
 
+
+@router.delete("/admin/delete/account", summary="ADMIN: Delete user account")
+def delete_account(user_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user), res: HTTPAuthorizationCredentials = Depends(security)):
+    try:
+        if current_user.get("role") != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don t have access to delete user account."
+            )
+        data_access.delete_from_users_table(db, user_id)
+        if(user_id == int(current_user.get("sub"))):
+            logout(res)
+        db.commit()
+        return "database entries are deleted"
+    except SQLAlchemyError as e:
+        db.rollback()
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="database error"
+        )
+    except HTTPException as e:
+        db.rollback()
+        return e
+    except Exception as e:
+        db.rollback()
+        print(f"Unexpected error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unexpected error"
+        )
+

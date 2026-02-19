@@ -13,10 +13,12 @@ import os
 
 
 @celery_app.task(name="analyze_video_task")
-def analyze_video_task(id_athlete: int, id_challenge: int):
+def analyze_video_task(id_athlete: int, id_challenge: int, result_id: int):
     db = SessionLocal()
 
     try:
+        data_access.update_result_status(db, result_id, "processing")
+        db.commit()
         athlete = data_access.get_athlete_by_id(db, id_athlete)
         challenge = data_access.get_challenge_by_id(db, id_challenge)
 
@@ -25,20 +27,25 @@ def analyze_video_task(id_athlete: int, id_challenge: int):
             return
 
         workout_type = challenge.challenge_name
-        video_path = os.path.join(videos_dir, workout_type, str(athlete.user_id), f"{workout_type}.mp4")
+        video_path = os.path.join(videos_dir, "raw", workout_type, str(athlete.user_id), f"{workout_type}.mp4")
+        processed_dir = os.path.join(videos_dir, "processed", workout_type, str(athlete.user_id))
+        os.makedirs(processed_dir, exist_ok=True)
+        output_video_path = os.path.join(processed_dir, f"{workout_type}_analyzed.mp4")
 
         AnalyzerClass = ANALYZERS.get(workout_type)
-        analyzer = AnalyzerClass(video_path)
+        analyzer = AnalyzerClass(video_path, output_path=output_video_path)
         analysis_result = analyzer.analyze(athlete)
 
-        data_access.create_challenge_result(db, id_challenge, athlete.user_id, analysis_result)
+        data_access.finalize_challenge_result(db, result_id, analysis_result)
+        my_challenge_results = data_access.get_challenge_results(db, id_athlete)
+        updated_attributes = analyzer.calculateAttribute(my_challenge_results)
+        data_access.update_user_attributes(updated_attributes, db, id_athlete)
 
-        if os.path.exists(video_path):
-            os.remove(video_path)
         print(f"Task successfully completed for the athlete {id_athlete}!")
 
     except Exception as e:
         print(f"error: {e}")
+        data_access.update_result_status(db, result_id, "failed")
         raise e
     finally:
         db.close()

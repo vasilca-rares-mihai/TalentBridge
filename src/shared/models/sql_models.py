@@ -29,7 +29,7 @@ class Athlete(Base):
     user = relationship("Users", back_populates="athlete_profile")
     attributes = relationship("Attribute", back_populates="athlete", cascade="all, delete-orphan")
     results = relationship("ChallengeResult", back_populates="athlete", cascade="all, delete-orphan")
-    applications = relationship("TrialApplications", back_populates="athlete")
+    applications = relationship("TrialApplications", back_populates="athlete", cascade="all, delete-orphan")
 
 class Challenge(Base):
     __tablename__ = "challenge"
@@ -37,6 +37,7 @@ class Challenge(Base):
     id_challenge = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
     challenge_name = Column(String(100), nullable=False, unique=True)
     unit_of_measure = Column(String(50), nullable=False)
+    info = Column(String(255), nullable=True)
 
     results = relationship("ChallengeResult", back_populates="challenge")
 
@@ -51,6 +52,7 @@ class ChallengeResult(Base):
 
     result_value = Column(Float, nullable=False)
     date_recorded = Column(Date, nullable=False)
+    status = Column(String(20), default="pending")
 
     athlete = relationship("Athlete", back_populates="results")
     challenge = relationship("Challenge", back_populates="results")
@@ -91,7 +93,7 @@ class FootballClub(Base):
     country = Column(String(255), nullable=False)
 
     user = relationship("Users", back_populates="football_club_profile")
-    trials = relationship("Trial", back_populates="club")
+    trials = relationship("Trial", back_populates="club", cascade="all, delete-orphan")
     favorites = relationship("FavoriteAthlete", back_populates="club")
 
 class FavoriteAthlete(Base):

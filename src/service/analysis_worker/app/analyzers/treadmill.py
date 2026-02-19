@@ -1,63 +1,92 @@
 import os
-import cv2
-from .base import VideoAnalyzer, mp_pose
-from ..utils.geometry import distance_points, drawLine, extract_pose_landmarks
+from typing import List
 
+import cv2
+import time
+from .base import VideoAnalyzer, mp_pose
+from .filter import OneEuroFilter
+from ..utils.geometry import distance_points, drawLine, extract_pose_landmarks, filter_outliers_inplace
+from shared.schemas.schemas import AttributeUpdate, ChallengeResult
 
 class StepAnalyzer(VideoAnalyzer):
-    def __init__(self, video_path):
-        super().__init__(video_path, window_name="Running Analysis")
+    def __init__(self, video_path, output_path=None):
+        super().__init__(video_path, window_name="Running Analysis", output_path=output_path)
         self.prev_distance_px = 0.0
-        self.in_pas = False
         self.video_timer = 0.0
+        self.speed_vector = []
 
-    #I created this function to calculate the distance and speed achieved by the athlete.
-    def calculateDistanceAndSpeed(self):
-        #I found in the specialized documentation a ratio between height and step distance
-        #Females: Height in inches multiplied by 0.413 equals stride length
-        #Males: Height in inches multiplied by 0.415 equals stride length
-        if self.athlete_gender == "Male":
-            self.distance = 0.415 * self.athlete_height * self.counter
-        elif self.athlete_gender == "Femail":
-            self.distance = 0.413 * self.athlete_height * self.counter
-        #I calculated the duration at which a frame is processed, to obtain the instantaneous speed
-        fps = self.cap.get(cv2.CAP_PROP_FPS)
-        frame_time = 1 / fps
-        self.video_timer += frame_time
-        #Speed
-        self.speed = self.distance / self.video_timer
+        self.filter_left = OneEuroFilter(min_cutoff=1.0, beta=2.0, freq=30.0)
+        self.filter_right = OneEuroFilter(min_cutoff=1.0, beta=2.0, freq=30.0)
 
+        self.L = 0
+        self.prev_counter = 0
+        self.frame_count = 0
+        self.last_step_frame = 0
 
-    #function that extracts the coordinates of key points from the image and returns them
+        self.vector_stang_filtrat = []
+        self.vector_drept_filtrat = []
+
     def extractLandmarks(self, landmarks):
-        landmark_name = [
-            "LEFT_HEEL",
-            "RIGHT_HEEL"
-        ]
+        landmark_name = ["LEFT_HEEL", "RIGHT_HEEL"]
         coords = extract_pose_landmarks(landmarks, landmark_name)
         return coords
 
-    #function I used to draw some information, for exemple: the distance between athlete's 2 legs
     def displayInfo(self, coords, image):
         drawLine(image, coords["LEFT_HEEL"], coords["RIGHT_HEEL"])
-        cv2.putText(image, self.stage, (50,50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,255), 2)
-
+        cv2.putText(image, f"Pasi: {self.counter}", (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
     def checkRep(self, coords):
-        #I calculate distance between athlet's to legs
-        distance_legs_px = distance_points(coords["LEFT_HEEL"], coords["RIGHT_HEEL"])
-        #if the distance starts to decrease, the step has been taken and the counter will increase.
-        if distance_legs_px < self.prev_distance_px and self.in_pas:
-            self.counter += 1
-            self.in_pas = False
-        #if the distance starts to increase, a new step will begin
-        elif distance_legs_px > self.prev_distance_px:
-            self.in_pas = True
+        self.frame_count += 1
 
-        self.prev_distance_px = distance_legs_px
-        self.stage = "running"
-        self.calculateDistanceAndSpeed()
+        left_x_raw = coords["LEFT_HEEL"][0]
+        right_x_raw = coords["RIGHT_HEEL"][0]
 
-        if(self.prev_counter != self.counter):
-            print(f"Step {self.counter}, Distance {self.distance}, Speed {self.speed}")
-            self.prev_counter = self.counter
+        l_smooth = self.filter_left.apply(left_x_raw)
+        r_smooth = self.filter_right.apply(right_x_raw)
+
+        self.vector_stang_filtrat.append(l_smooth)
+        self.vector_drept_filtrat.append(r_smooth)
+
+        prag_sensibil = 0.015
+        cooldown_frames = 5
+
+        self.distance = self.calculateDistance()
+        self.speed = self.calculateSpeed(self.distance)
+        if (self.frame_count - self.last_step_frame) > cooldown_frames:
+            if r_smooth < (l_smooth - prag_sensibil) and self.L == 0:
+                self.counter += 1
+                self.L = 1
+                self.last_step_frame = self.frame_count
+                print(
+                    f"Right foot! Total: {self.counter} (Frame: {self.frame_count}) distance: {self.distance}, speed: {self.speed}")
+
+            elif l_smooth < (r_smooth - prag_sensibil) and self.L == 1:
+                self.counter += 1
+                self.L = 0
+                self.last_step_frame = self.frame_count
+                print(
+                    f"Left foot! Total: {self.counter} (Frame: {self.frame_count}), distance: {self.distance}, acceleration: {self.speed}")
+
+
+    def calculateDistance(self):
+        return self.counter * self.athlete_height * 0.65
+
+    def calculateSpeed(self, distance):
+        self.video_timer += (1.0 / self.fps)
+        if self.video_timer > 0:
+            return distance / self.video_timer
+        else:
+            return 0
+    def calculateAcceleration(self, raw_speed):
+        return 1250 # trb modificat
+
+    def calculateAttribute(self, challenges_results: List[ChallengeResult]):
+        for challenge_result in challenges_results:
+            if challenge_result.challenge_id == 4:
+                raw_speed = self.calculateSpeed(challenge_result.result_value)
+                acceleration = self.calculateAcceleration(raw_speed)
+                update_obj = AttributeUpdate(sprint_speed=int(raw_speed), acceleration=int(acceleration))
+                return update_obj
+
+        return AttributeUpdate()
+

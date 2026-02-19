@@ -1,11 +1,16 @@
+from typing import List
+
 import cv2
+
+from shared.models.sql_models import Attribute
+from shared.schemas.schemas import AttributeUpdate, ChallengeResult
 from .base import VideoAnalyzer, mp_pose
 from ..utils.geometry import calculate_angle, drawLine, extract_pose_landmarks
 from .exercise_thresholds import ExerciseThresholds
 
 class PushupAnalyzer(VideoAnalyzer):
-    def __init__(self, video_path):
-        super().__init__(video_path, window_name="Push-up Analysis")
+    def __init__(self, video_path, output_path=None):
+        super().__init__(video_path, window_name="Push-up Analysis", output_path=output_path)
 
     # function that extracts the coordinates of key points from the image and returns them
     def extractLandmarks(self, landmarks):
@@ -60,3 +65,14 @@ class PushupAnalyzer(VideoAnalyzer):
         if self.prev_counter != self.counter:
             print(f"Push-ups: {self.counter}")
             self.prev_counter = self.counter
+
+    def calculateAttribute(self, challenges_results: List[ChallengeResult]):
+        # 1=pushup, 2=pullup, 3=squat
+        strength_ids = {1, 2, 3}
+        total_score = 0
+
+        for challenge in challenges_results:
+            if challenge.challenge_id in strength_ids:
+                total_score += challenge.result_value
+
+        return AttributeUpdate(strength=int(total_score * 10))

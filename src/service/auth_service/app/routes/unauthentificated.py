@@ -31,6 +31,7 @@ def create_first_admin(db: Session = Depends(get_db)):
         print(f"ROLLBACK EXECUTED. Reason: {e}")
         raise HTTPException(status_code=status_code, detail=detail)
 
+
 @router.post("/create/athlete", summary="Create an user-athlete account")
 def create_user_account(athlete_data: AthleteBase, email: str, password: str, db: Session = Depends(get_db)):
     try:
@@ -59,6 +60,7 @@ def create_user_account(athlete_data: AthleteBase, email: str, password: str, db
             status_code = 500
         print(f"ROLLBACK EXECUTED. Reason: {e}")
         raise HTTPException(status_code=status_code, detail=detail)
+
 
 @router.post("/create/football_club", summary="Create an user-football club account")
 def create_football_club_account(football_club_data: FootballClubBase, email: str, password: str, db: Session = Depends(get_db)):
@@ -107,6 +109,7 @@ def create_football_club_account(football_club_data: FootballClubBase, email: st
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
         )
+
 
 @router.post("/login", summary="LOGIN: Verify password and return jwt")
 def login(email: str, password: str, db: Session = Depends(get_db)):

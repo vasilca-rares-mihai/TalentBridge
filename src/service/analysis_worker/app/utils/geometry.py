@@ -53,3 +53,20 @@ def extract_pose_landmarks(landmarks, landmark_names):
             for name in landmark_names}
 
 
+import numpy as np
+
+
+def filter_outliers_inplace(data):
+    non_zeros = [x for x in data if x != 0]
+
+    if not non_zeros:
+        data[:] = []
+        return
+
+    q1, q3 = np.percentile(non_zeros, [25, 75])
+    iqr = q3 - q1
+    lower_bound = q1 - 1.5 * iqr
+    upper_bound = q3 + 1.5 * iqr
+
+    data[:] = [x for x in non_zeros if lower_bound <= x <= upper_bound]
+

@@ -10,6 +10,7 @@ import re
 class ChallengeBase(BaseModel):
     challenge_name: str
     unit_of_measure: str
+    info: str
 
 
 class ChallengeCreate(ChallengeBase):
@@ -26,6 +27,7 @@ class Challenge(ChallengeBase):
 class ChallengeResultBase(BaseModel):
     result_value: float
     date_recorded: date
+    status: str
 
 
 class ChallengeResultCreate(ChallengeResultBase):
@@ -194,4 +196,11 @@ class Trial(BaseModel):
 class TrialApplications(BaseModel):
     id_trial: int
     id_athlete: int
+
+class Challenges(BaseModel):
+    pullup: int
+    squat: int
+    pushup: int
+    treadmill: int
+    vjump: int
 

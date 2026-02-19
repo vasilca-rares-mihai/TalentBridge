@@ -47,6 +47,7 @@ def compare_athletes(id_athlete1: int, id_athlete2: int, db: Session = Depends(g
             detail="Server error"
         )
 
+
 @router.post("/search/athlete", summary= "FOOTBALL CLUB & ADMIN: Search an athlete by filters")
 def search_athletes(athlete_searched: AthleteSearched, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     if current_user.get("role") != "admin" and current_user.get("role") != "football_club":
@@ -78,7 +79,7 @@ def search_athletes(athlete_searched: AthleteSearched, db: Session = Depends(get
         )
 
 
-@router.delete("/delete/football_club/{user_id}", summary="Delete football_club")
+@router.delete("/delete/football_club/{user_id}", summary="FOOTBALL CLUB & ADMIN: Delete football_club")
 def delete_football_club(id_football_club: int,  db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
         user = data_access.find_user_by_id(db, id_football_club)
@@ -100,7 +101,7 @@ def delete_football_club(id_football_club: int,  db: Session = Depends(get_db), 
             )
 
         data_access.delete_from_football_club_table(db, id_football_club)
-        data_access.delete_from_users_table(db, user.email)
+        data_access.delete_from_users_table(db, user.id_football_club)
         db.commit()
 
     except SQLAlchemyError as e:

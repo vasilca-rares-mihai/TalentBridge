@@ -24,3 +24,4 @@ class RolesEnum(str, Enum):
     admin = 'admin'
     athlete = 'athlete'
     football_club = 'football_club'
+

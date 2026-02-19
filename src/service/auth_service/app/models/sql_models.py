@@ -11,5 +11,5 @@ class Users(Base):
     password_hash = Column(String(255), nullable=False)
     role = Column(String(20), nullable=False)
 
-    athlete_profile = relationship("Athlete", back_populates="user", uselist=False)
-    football_club_profile = relationship("FootballClub", back_populates="user", uselist=False)
+    athlete_profile = relationship("Athlete", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    football_club_profile = relationship("FootballClub", back_populates="user", uselist=False, cascade="all, delete-orphan")

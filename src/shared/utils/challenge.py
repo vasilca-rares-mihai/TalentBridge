@@ -6,7 +6,7 @@ ANALYZERS = {
     'pullup': PullupAnalyzer, #2
     'vertical jump': VerticalJumpAnalyzer, #5
 }
-videos_dir = "service/shared_storage/videos"
+videos_dir = "service/video_storage/"
 
 #default password when trying to create first admin account
 defpassword = "admin"

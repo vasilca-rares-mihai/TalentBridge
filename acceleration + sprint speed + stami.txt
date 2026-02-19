@@ -1,0 +1,28 @@
+acceleration + sprint speed + stamina
+		alergat pe banda
+		
+finishing + shot_power + long_shots
+		distance shoot
+penalty
+		penalty shoot
+short pass
+		short pass
+long pass
+		long pass
+agility + balance
+		505
+		back sprint
+ball_control
+		picurele
+dribbling
+		dribbling 
+heading accuracy
+		head shot
+jumping
+		vertical jump
+		saritura in lungime
+strength
+		pullup
+		pushup
+		squat
+		abdomene

@@ -4,18 +4,32 @@ from abc import ABC, abstractmethod
 
 mp_drawing = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
+pose = mp_pose.Pose(
+    static_image_mode=False,
+    model_complexity=1,
+    smooth_landmarks=True,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.7
+)
 
 class VideoAnalyzer(ABC):
-    def __init__(self, video_path, window_name="Training Analysis"):
+    def __init__(self, video_path, window_name="Training Analysis", output_path=None):
         self.video_path = video_path
+        self.output_path = output_path
         self.window_name = window_name
         self.cap = cv2.VideoCapture(video_path)
 
         self.stage = "initial"
         self.h = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.w = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
 
+        self.writer = None
+        if self.output_path:
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            self.writer = cv2.VideoWriter(self.output_path, fourcc, self.fps, (self.w, self.h))
         self.prev_counter = None
+
         self.angle1 = 0
         self.angle2 = 0
         self.counter = 0
@@ -46,6 +60,9 @@ class VideoAnalyzer(ABC):
     def displayInfo(self, landmarks_data, image):
         pass
 
+    @abstractmethod
+    def calculateAttribute(self):
+        pass
 
     def analyze(self, athlete):
         self.athlete_age = athlete.age
@@ -75,6 +92,10 @@ class VideoAnalyzer(ABC):
                     self.checkRep(landmarks_data)
 
                     mp_drawing.draw_landmarks(image, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+                cv2.putText(image, f"FPS: {int(self.fps)}", (10, 50),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                if self.writer:
+                    self.writer.write(image)
 
         print(f"Analysis completed. Total repetitions: {self.counter}")
         self.cap.release()

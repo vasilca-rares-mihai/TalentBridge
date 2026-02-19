@@ -1,10 +1,14 @@
+from typing import List
+
 import cv2
+
+from shared.schemas.schemas import AttributeUpdate, ChallengeResult
 from .base import VideoAnalyzer, mp_pose
 from ..utils.geometry import distance_points, drawLine, pxToM, extract_pose_landmarks
 
 class VerticalJumpAnalyzer(VideoAnalyzer):
-    def __init__(self, video_path):
-        super().__init__(video_path, window_name='Vertical Jump Analysis')
+    def __init__(self, video_path, output_path=None):
+        super().__init__(video_path, window_name='Vertical Jump Analysis', output_path=output_path)
         self.line = None
         self.prev_coord = 1
         self.flag = True
@@ -76,3 +80,14 @@ class VerticalJumpAnalyzer(VideoAnalyzer):
         if self.prev_counter != self.counter:
             print(f"Jump: {self.counter}; jump height: {self.list_of_jumps[self.counter]} m")
             self.prev_counter = self.counter
+
+    def calculateAttribute(self, challenges_results: List[ChallengeResult]):
+        # 1=pushup, 2=pullup, 3=squat
+        strength_ids = {5, 6}
+        total_score = 0
+
+        for challenge in challenges_results:
+            if challenge.challenge_id in strength_ids:
+                total_score += challenge.result_value
+
+        return AttributeUpdate(jumping=int(total_score * 10))
