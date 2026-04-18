@@ -11,7 +11,7 @@ from starlette import status
 from shared.core.database import get_db
 from shared.crud import data_access
 from shared.crud.security import get_current_user, hash_password, create_jws_token, security, passwords_match, verify_password
-from shared.schemas.schemas import AthleteBase, Challenge
+from shared.schemas.schemas import AthleteBase, Challenge, LoginData, FootballClubSearched
 from service.auth_service.app.routes.unauthentificated import logout
 from service.auth_service.app.schemas.auth_schemas import UserUpdatePassword
 from shared.utils.enums import RolesEnum
@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api", tags=["admin"])
 
 
 @router.put("/user/update/email", summary="ADMIN & ATHLETE & FOOTBALL CLUB: update a user's login email")
-def update_email(email: str, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user), res: HTTPAuthorizationCredentials = Depends(security)):
+def update_email(new_data: LoginData, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user), res: HTTPAuthorizationCredentials = Depends(security)):
     try:
         user = data_access.find_user_by_email(db, current_user.get("email"))
         if user is None:
@@ -29,12 +29,14 @@ def update_email(email: str, db: Session = Depends(get_db), current_user: dict =
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
-        user.email = email
-        db.commit()
-        db.refresh(user)
-        logout(res)
-        new_token = create_jws_token(int(current_user.get("sub")), current_user.get("role"), user.email)
-        return user, new_token
+        is_valid = verify_password(new_data.password, user.password_hash)
+        if is_valid:
+            user.email = new_data.email
+            db.commit()
+            db.refresh(user)
+            logout(res)
+            new_token = create_jws_token(int(current_user.get("sub")), current_user.get("role"), user.email)
+            return new_token
 
     except IntegrityError:
         db.rollback()
@@ -314,3 +316,58 @@ def delete_account(user_id: int, db: Session = Depends(get_db), current_user: di
             detail="Unexpected error"
         )
 
+@router.get("/admin/count_athlete")
+def infoPannel(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") not in ["admin"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don t have access to list of athletes."
+        )
+    try:
+        result = data_access.infoPannel(db)
+
+        return result
+    except SQLAlchemyError as e:
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error"
+        )
+    except HTTPException as e:
+        return e
+    except Exception as e:
+        print(f"error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Server error: {e}"
+        )
+
+@router.post("/search/fc", summary= "ADMIN: Search an fc by filters")
+def search_fc(fc_searched: FootballClubSearched, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    if current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don t have access to search fc"
+        )
+    try:
+        fc = data_access.list_fc_by_filter(db, fc_searched)
+        if fc is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="fc not found"
+            )
+        return fc
+    except SQLAlchemyError as e:
+        db.rollback()
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database error"
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )

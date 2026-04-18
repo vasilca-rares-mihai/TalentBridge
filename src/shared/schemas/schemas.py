@@ -30,6 +30,7 @@ class ChallengeResultBase(BaseModel):
     status: str
 
 
+
 class ChallengeResultCreate(ChallengeResultBase):
     user_id: int
     challenge_id: int
@@ -153,19 +154,25 @@ class AthleteUpdate(BaseModel):
 class AthleteSearched(BaseModel):
     first_name: Optional[str] = None
     second_name: Optional[str] = None
+    gender: Optional[GenderEnum] = None
     field_position: Optional[PositionsEnum] = None
     weak_foot: Optional[WeakFootEnum] = None
     country: Optional[str] = None
 
-    age_range: Optional[List[float]] = Field(None, min_items=2, max_items=2)
-    height_range: Optional[List[float]] = Field(None, min_items=2, max_items=2)
-    weight_range: Optional[List[float]] = Field(None, min_items=2, max_items=2)
-    @field_validator('field_position', 'weak_foot', mode='before')
+    age_range: Optional[List[Optional[int]]] = Field(default=None, min_items=2, max_items=2)
+    height_range: Optional[List[Optional[float]]] = Field(default=None, min_items=2, max_items=2)
+    weight_range: Optional[List[Optional[float]]] = Field(default=None, min_items=2, max_items=2)
+    @field_validator('field_position', 'weak_foot', 'gender', mode='before')
     @classmethod
     def empty_str_to_none(cls, v):
         if v == "":
             return None
         return v
+
+
+class FootballClubSearched(BaseModel):
+    name: str
+    country: str
 
 class Athlete(AthleteBase):
     user_id: int
@@ -180,6 +187,7 @@ class Athlete(AthleteBase):
 class FootballClubBase(BaseModel):
     name: str
     country: Optional[str] = None
+    info: str
 
 ###############################
 
@@ -188,10 +196,19 @@ class FavoriteAthlete(BaseModel):
     athlete_id: int
 
 
+
 class Trial(BaseModel):
     until_date: date
     info: str
     requirements: AttributeUpdate
+
+class TrialResponse(Trial):
+    id_trial: int
+    football_club: str
+    country: str
+
+    class Config:
+        from_attributes = True
 
 class TrialApplications(BaseModel):
     id_trial: int
@@ -203,4 +220,28 @@ class Challenges(BaseModel):
     pushup: int
     treadmill: int
     vjump: int
+
+class CreateAthleteRequest(BaseModel):
+    email: str
+    password: str
+    athlete_data: AthleteBase
+
+class CreateFootballClubRequest(BaseModel):
+    email: str
+    password: str
+    club_data: FootballClubBase
+
+class LoginData(BaseModel):
+    email: str
+    password: str
+
+
+class CountResponse(BaseModel):
+    athleteCount: int
+    footballClubCount: int
+    analysisCount: int
+    challengesCount: int
+    trialsCount: int
+    favoriteAthCount: int
+    trialApplicationsCount: int
 

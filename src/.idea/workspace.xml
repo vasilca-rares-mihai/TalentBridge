@@ -5,11 +5,32 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="6047dab3-80ad-41da-b10c-1199c92c45d8" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/extractKP/test/test_squat.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/extractKP/train/train_kicks.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/extractKP/train/train_situp.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/extractKP/train/train_squat.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/extractKP/video to data/kick.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/extractKP/video to data/situp.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/service/analysis_worker/app/analyzers/kick.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/service/analysis_worker/app/analyzers/situp.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../acceleration + sprint speed + stami.txt" beforeDir="false" afterPath="$PROJECT_DIR$/../acceleration + sprint speed + stami.txt" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/service/analysis_worker/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/service/analysis_worker/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/service/auth_service/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/service/auth_service/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/service/core_service/Dockerfile" beforeDir="false" afterPath="$PROJECT_DIR$/service/core_service/Dockerfile" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/service/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/service/docker-compose.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/.idea/.name" beforeDir="false" afterPath="$PROJECT_DIR$/service/.idea/.name" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/analysis_worker/app/analyzers/__init__.py" beforeDir="false" afterPath="$PROJECT_DIR$/service/analysis_worker/app/analyzers/__init__.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/analysis_worker/app/analyzers/pushup.py" beforeDir="false" afterPath="$PROJECT_DIR$/service/analysis_worker/app/analyzers/pushup.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/auth_service/app/routes/unauthentificated.py" beforeDir="false" afterPath="$PROJECT_DIR$/service/auth_service/app/routes/unauthentificated.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/core_service/app/routes/admin.py" beforeDir="false" afterPath="$PROJECT_DIR$/service/core_service/app/routes/admin.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/core_service/app/routes/athlete.py" beforeDir="false" afterPath="$PROJECT_DIR$/service/core_service/app/routes/athlete.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/core_service/app/routes/football_club.py" beforeDir="false" afterPath="$PROJECT_DIR$/service/core_service/app/routes/football_club.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/video_storage/processed/pushup/24/pushup_analyzed.mp4" beforeDir="false" afterPath="$PROJECT_DIR$/service/video_storage/processed/pushup/24/pushup_analyzed.mp4" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/video_storage/raw/pullup/1/pullup.mp4" beforeDir="false" afterPath="$PROJECT_DIR$/service/video_storage/raw/pullup/1/pullup.mp4" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/video_storage/raw/pushup/1/pushup.mp4" beforeDir="false" afterPath="$PROJECT_DIR$/service/video_storage/raw/pushup/1/pushup.mp4" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/service/video_storage/raw/pushup/24/pushup.mp4" beforeDir="false" afterPath="$PROJECT_DIR$/service/video_storage/raw/pushup/24/pushup.mp4" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/shared/crud/data_access.py" beforeDir="false" afterPath="$PROJECT_DIR$/shared/crud/data_access.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/shared/models/sql_models.py" beforeDir="false" afterPath="$PROJECT_DIR$/shared/models/sql_models.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/shared/schemas/schemas.py" beforeDir="false" afterPath="$PROJECT_DIR$/shared/schemas/schemas.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/shared/utils/challenge.py" beforeDir="false" afterPath="$PROJECT_DIR$/shared/utils/challenge.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -42,7 +63,8 @@
     &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
     &quot;git-widget-placeholder&quot;: &quot;master&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/rares/Desktop/TalentBridge/src&quot;
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/rares/Desktop/TalentBridge/src&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;com.jetbrains.python.configuration.PyActiveSdkModuleConfigurable&quot;
   }
 }</component>
   <component name="SharedIndexes">
@@ -61,5 +83,16 @@
       <updated>1770544527099</updated>
     </task>
     <servers />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/service/core_service/app/routes/football_club.py</url>
+          <line>297</line>
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>

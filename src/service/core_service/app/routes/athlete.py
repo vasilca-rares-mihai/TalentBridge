@@ -142,7 +142,7 @@ async def upload_video(id_challenge : int, db: Session = Depends(get_db), file: 
             "message": "Video successfully received",
             "saved_path": video_path,
             "filename": file.filename,
-            "athlete id:" : athlete.user_id,
+            "athlete_id:" : athlete.user_id,
         }
     except SQLAlchemyError as e:
         db.rollback()
@@ -163,7 +163,7 @@ async def upload_video(id_challenge : int, db: Session = Depends(get_db), file: 
         )
 
 
-@router.get("/video/display/{result_id}", summary="ATHLETE: returns processed video (analysed video)")
+@router.get("/video/display/{challenge_id}", summary="ATHLETE: returns processed video (analysed video)")
 def get_analyzed_video(challenge_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     challenge = data_access.get_challenge_by_id(db, challenge_id)
     result = data_access.get_challenge_result_by_id(db, challenge_id, int(current_user.get("sub")))
@@ -182,6 +182,17 @@ def get_analyzed_video(challenge_id: int, db: Session = Depends(get_db), current
         )
 
     return FileResponse(analyzed_video_path, media_type="video/mp4")
+
+
+@router.get("/video/status/{challenge_id}", summary="Check if analysis is complete")
+def check_video_status(challenge_id: int, db: Session = Depends(get_db),
+                       current_user: dict = Depends(get_current_user)):
+    result = data_access.get_challenge_result_by_id(db, challenge_id, int(current_user.get("sub")))
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Result not found")
+
+    return {"status": result.status}
 
 
 @router.post("/video/analyze", summary="ATHLETE: Run analysis")
@@ -367,7 +378,7 @@ def insert_challenge_result_db(id_challenge: int, result: int, db: Session = Dep
         )
 
 
-@router.delete("/delete/athlete/{user_id}", summary="ATHLETE: Delete user/athlete/attribute")
+@router.delete("/delete/{user_id}", summary="ATHLETE: Delete user/athlete/attribute")
 def delete_athlete(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     try:
         user = data_access.find_user_by_id(db, int(current_user.get("sub")))
@@ -402,7 +413,6 @@ def delete_athlete(db: Session = Depends(get_db), current_user: dict = Depends(g
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Server error"
         )
-
 
 @router.get("/challenges", summary="ATHLETE: returns challenges. index = 0 for all challenges. index = 1 for uncompleted challenges. index = 2 fro completed challenges")
 def get_locked_challenges(index: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -474,7 +484,7 @@ def apply_trial(id_trial, db: Session = Depends(get_db), current_user = Depends(
         if this_trial is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="trial not found"
+                detail="trial not found",
             )
         data_access.apply_to_trial(db, id_trial, int(current_user.get("sub")))
         db.commit()
@@ -538,7 +548,8 @@ def all_trials(db: Session = Depends(get_db), current_user = Depends(get_current
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You are not allowed to do this action"
             )
-        return data_access.get_all_trials(db)
+        trials = data_access.get_all_trials(db)
+        return trials
     except SQLAlchemyError as e:
         db.rollback()
         print(f"Database error: {e}")
@@ -580,4 +591,37 @@ def update_attribute(attribute_updated: AttributeUpdate, db: Session = Depends(g
         db.rollback()
         return e
 
+
+@router.get("/trial/my_applications", summary="ATHLETE: Get all your trial applications")
+def my_applications(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    try:
+        user = data_access.find_user_by_id(db, int(current_user.get("sub")))
+        athlete = data_access.get_athlete_by_id(db, int(current_user.get("sub")))
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="The user to be deleted was not found."
+            )
+        if athlete is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User is not an athlete"
+            )
+        trial_applications = data_access.my_trial_applications(db, int(current_user.get("sub")))
+        return trial_applications
+    except SQLAlchemyError as e:
+        db.rollback()
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="database error"
+        )
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(e)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="server error"
+        )
 

@@ -4,12 +4,13 @@ from fastapi import APIRouter, FastAPI, Depends, HTTPException
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.sql.functions import current_user
+from sqlalchemy.testing.pickleable import User
 from starlette import status
 
 from shared.core.database import get_db
 from shared.crud import data_access
 from shared.crud.security import get_current_user
-from shared.schemas.schemas import AthleteBase, AthleteSearched, FavoriteAthlete, Trial
+from shared.schemas.schemas import AthleteBase, AthleteSearched, FavoriteAthlete, Trial, FootballClubBase
 from shared.utils.enums import PositionsEnum, GenderEnum, WeakFootEnum
 
 app = FastAPI()
@@ -267,7 +268,7 @@ def my_trials(db: Session = Depends(get_db), current_user = Depends(get_current_
             detail="server error"
         )
 
-@router.get("trial/applications/{id_trial}", summary="FOOTBALL CLUB: get trial application")
+@router.get("/trial/applications/{id_trial}", summary="FOOTBALL CLUB: get trial application")
 def trial_applications(id_trial: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     try:
         this_trial = data_access.get_trial_by_id(db, id_trial)
@@ -294,4 +295,88 @@ def trial_applications(id_trial: int, db: Session = Depends(get_db), current_use
             detail="server error"
         )
 
+@router.get("/me", summary = "FOOTBALL CLUB & ADMIN: return football club info")
+def me(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    user = data_access.find_user_by_id(db, int(current_user.get("sub")))
+    if user.role not in ["admin", "football_club"]:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You don t have access to get user info."
+        )
+    try:
+        football_club = data_access.get_football_club_by_id(db, int(current_user.get("sub")))
+        if football_club is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="The football club was not found."
+            )
+        return {
+            "role": current_user.get("role"),
+            "email": current_user.get("email"),
+            "football_club": football_club
+            }
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unexpected error"
+        )
+    except SQLAlchemyError as e:
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="database error"
+        )
+    except HTTPException as e:
+        return e
 
+@router.get("/my_watchlist", summary="FOOTBALL CLUB: return my watchlist athletes")
+def my_watchlist(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        if current_user.get("role") not in ["football_club"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not allowed to do this action"
+            )
+        watchlist = data_access.get_my_watchlist(db, current_user.get("sub"))
+        return watchlist
+
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unexpected error"
+        )
+    except SQLAlchemyError as e:
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="database error"
+        )
+    except HTTPException as e:
+        return e
+
+@router.put("/update/me", summary="ATHLETE: Update fc info")
+def update_fc(user_updated: FootballClubBase, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    try:
+        football_club = data_access.get_football_club_by_id(db, current_user.get("sub"))
+        data_access.update_fc_info(user_updated, db, current_user.get("sub"))
+
+        return football_club
+    except Exception as e:
+        db.rollback()
+        print(f"Unexpected error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unexpected error"
+        )
+    except SQLAlchemyError as e:
+        db.rollback()
+        print(f"Database error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="database error"
+        )
+    except HTTPException as e:
+        db.rollback()
+        return e

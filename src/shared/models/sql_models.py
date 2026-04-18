@@ -39,7 +39,7 @@ class Challenge(Base):
     unit_of_measure = Column(String(50), nullable=False)
     info = Column(String(255), nullable=True)
 
-    results = relationship("ChallengeResult", back_populates="challenge")
+    results = relationship("ChallengeResult", back_populates="challenge", cascade="all, delete-orphan")
 
 
 class ChallengeResult(Base):
@@ -91,10 +91,11 @@ class FootballClub(Base):
     user_id = Column(BigInteger, ForeignKey("users.id"), primary_key=True)
     name = Column(String(255), unique=True, nullable=False)
     country = Column(String(255), nullable=False)
+    info = Column(String(255), nullable=True)
 
     user = relationship("Users", back_populates="football_club_profile")
     trials = relationship("Trial", back_populates="club", cascade="all, delete-orphan")
-    favorites = relationship("FavoriteAthlete", back_populates="club")
+    favorites = relationship("FavoriteAthlete", back_populates="club", cascade="all, delete-orphan")
 
 class FavoriteAthlete(Base):
     __tablename__ = 'favorite_athlete'
@@ -130,3 +131,10 @@ class TrialApplications(Base):
 
     trial = relationship("Trial", back_populates="applications")
     athlete = relationship("Athlete")
+
+class PushUpTest(Base):
+    __tablename__ = 'push_up_test'
+
+    rank = Column(String(15), primary_key=True, nullable=False)
+    reps = Column(Integer, nullable=False)
+    points = Column(Integer, nullable=False)

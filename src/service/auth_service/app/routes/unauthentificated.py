@@ -7,7 +7,7 @@ from starlette import status
 from shared.core.database import get_db
 from shared.crud import data_access
 from shared.crud import security
-from shared.schemas.schemas import AthleteBase, FootballClubBase
+from shared.schemas.schemas import AthleteBase, FootballClubBase, CreateAthleteRequest, CreateFootballClubRequest
 from shared.utils.enums import RolesEnum
 
 router = APIRouter(prefix="/api/unauthenticated", tags=["unauthenticated"])
@@ -33,12 +33,12 @@ def create_first_admin(db: Session = Depends(get_db)):
 
 
 @router.post("/create/athlete", summary="Create an user-athlete account")
-def create_user_account(athlete_data: AthleteBase, email: str, password: str, db: Session = Depends(get_db)):
+def create_user_account(athlete_data: CreateAthleteRequest, db: Session = Depends(get_db)):
     try:
         role = RolesEnum.athlete
-        password_hash = security.hash_password(password)
+        password_hash = security.hash_password(athlete_data.password)
 
-        user = data_access.create_user(db, email, password_hash, role)
+        user = data_access.create_user(db, athlete_data.email, password_hash, role)
         db.flush()
 
         athlete = data_access.create_athlete(db, athlete_data, user.id)
@@ -63,15 +63,15 @@ def create_user_account(athlete_data: AthleteBase, email: str, password: str, db
 
 
 @router.post("/create/football_club", summary="Create an user-football club account")
-def create_football_club_account(football_club_data: FootballClubBase, email: str, password: str, db: Session = Depends(get_db)):
+def create_football_club_account(football_club_data: CreateFootballClubRequest, db: Session = Depends(get_db)):
     try:
         role = RolesEnum.football_club
-        password_hash = security.hash_password(password)
+        password_hash = security.hash_password(football_club_data.password)
 
-        user = data_access.create_user(db, email, password_hash, role)
+        user = data_access.create_user(db, football_club_data.email, password_hash, role)
         db.flush()
 
-        data_access.create_football_club(db, football_club_data, user.id)
+        data_access.create_football_club(db, football_club_data.club_data, user.id)
 
         db.commit()
         db.refresh(user)

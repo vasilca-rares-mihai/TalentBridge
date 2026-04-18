@@ -11,7 +11,8 @@ from shared.crud.security import security
 from shared.crud import security
 from shared.models.sql_models import Athlete, Attribute, ChallengeResult, Challenge, FootballClub, FavoriteAthlete, \
     Trial, TrialApplications
-from shared.schemas.schemas import AthleteUpdate, AthleteSearched, AttributeUpdate
+from shared.schemas.schemas import AthleteUpdate, AthleteSearched, AttributeUpdate, TrialResponse, CreateAthleteRequest, \
+    CountResponse, FootballClubSearched
 from typing import Optional
 from shared.utils.enums import GenderEnum, PositionsEnum, WeakFootEnum, RolesEnum
 from datetime import date, timedelta
@@ -24,22 +25,22 @@ def list_athletes(db: Session) -> List[Athlete]:
     stms = select(Athlete)
     return db.scalars(stms).all()
 
-def create_athlete(db: Session, athlete: Athlete, id_u: int):
+def create_athlete(db: Session, athlete: CreateAthleteRequest, id_u: int):
     new_athlete = Athlete(
         user_id = id_u,
-        first_name= athlete.first_name,
-        second_name = athlete.second_name,
-        field_position = athlete.field_position,
-        weak_foot = athlete.weak_foot,
-        age = athlete.age,
-        gender = athlete.gender,
-        height = athlete.height,
-        weight = athlete.weight,
-        country = athlete.country,
-        region = athlete.region,
-        city = athlete.city,
-        phone_number = athlete.phone_number,
-        date_of_birth = athlete.date_of_birth,
+        first_name= athlete.athlete_data.first_name,
+        second_name = athlete.athlete_data.second_name,
+        field_position = athlete.athlete_data.field_position,
+        weak_foot = athlete.athlete_data.weak_foot,
+        age = athlete.athlete_data.age,
+        gender = athlete.athlete_data.gender,
+        height = athlete.athlete_data.height,
+        weight = athlete.athlete_data.weight,
+        country = athlete.athlete_data.country,
+        region = athlete.athlete_data.region,
+        city = athlete.athlete_data.city,
+        phone_number = athlete.athlete_data.phone_number,
+        date_of_birth = athlete.athlete_data.date_of_birth,
     )
 
     db.add(new_athlete)
@@ -110,6 +111,20 @@ def update_user_info(payload: AthleteUpdate, db: Session, id_u: int):
         db.refresh(athlete)
     return athlete
 
+def update_fc_info(payload: FootballClub, db: Session, id_u: int):
+    stmt = select(FootballClub).where(FootballClub.user_id == id_u)
+    fc = db.scalars(stmt).first()
+    if fc:
+        athlete_updated = payload.model_dump(exclude_unset=True)
+        for key, value in athlete_updated.items():
+            if value not in [None, "", 0]:
+                setattr(fc, key, value)
+
+        db.add(fc)
+        db.commit()
+        db.refresh(fc)
+    return fc
+
 
 def update_user_attributes(attribute_updated: AttributeUpdate, db: Session, id_u: int):
     stmt = select(Attribute).where(Attribute.user_id == id_u)
@@ -141,13 +156,11 @@ def delete_from_football_club_table(db: Session, id: int):
 
 def list_athletes_by_filter(db: Session, athlete_searched: AthleteSearched) -> List[Athlete]:
     athletes = select(Athlete)
-
     search_params = athlete_searched.model_dump(exclude_unset=True)
-
     valid_columns = Athlete.__table__.columns.keys()
 
     for key, value in search_params.items():
-        if value in [None, "", 0, [0, 0]]:
+        if value in [None, "", 0, [0, 0], [None, None]]:
             continue
 
         if key in valid_columns:
@@ -159,6 +172,28 @@ def list_athletes_by_filter(db: Session, athlete_searched: AthleteSearched) -> L
                 athletes = athletes.where(col.between(value[0], value[1]))
 
     return db.scalars(athletes).all()
+
+
+def list_fc_by_filter(db: Session, fc_searched: FootballClubSearched) -> List[FootballClub]:
+    fc = select(FootballClub)
+    search_params = fc_searched.model_dump(exclude_unset=True)
+
+    valid_columns = FootballClub.__table__.columns.keys()
+
+    for key, value in search_params.items():
+        if value in [None, "", 0, [0, 0]]:
+            continue
+
+        if key in valid_columns:
+            fc = fc.where(getattr(FootballClub, key) == value)
+
+        elif key.endswith("_range") and isinstance(value, list) and len(value) == 2:
+            column_name = key.replace("_range", "")
+            if column_name in valid_columns:
+                col = getattr(FootballClub, column_name)
+                fc = fc.where(col.between(value[0], value[1]))
+
+    return db.scalars(fc).all()
 
 def compare_athletes_stats(db: Session, id_athlete1: int, id_athlete2: int):
     athlete1 = get_athlete_by_id(db, id_athlete1)
@@ -181,18 +216,14 @@ def compare_athletes_stats(db: Session, id_athlete1: int, id_athlete2: int):
         val1 = getattr(attribute1, stat, 0) or 0
         val2 = getattr(attribute2, stat, 0) or 0
         if val1 > val2:
-            mesaj = f"{athlete1.first_name} e mai bun (+{val1 - val2})"
+            mesaj = f"1"
         elif val2 > val1:
-            mesaj = f"{athlete2.first_name} e mai bun (+{val2 - val1})"
+            mesaj = f"2"
         else:
             mesaj = "Eq"
 
         comparison_result[stat] = mesaj
 
-    comparison_result["athletes"] = {
-        "athlete_1_name": athlete1.first_name,
-        "athlete_2_name": athlete2.first_name
-    }
 
     return comparison_result
 
@@ -263,7 +294,7 @@ def create_challenge_result(db: Session, id_challenge: int, id_u: int, result: i
 
 def get_challenge_result_by_id(db, challenge_id, athlete_id):
     stms = select(ChallengeResult).where(ChallengeResult.user_id == athlete_id, ChallengeResult.challenge_id == challenge_id)
-    return db.scalars(stms).all()
+    return db.scalars(stms).first()
 
 def get_challenge_results(db, athlete_id, ):
     stmt = select(ChallengeResult).where(ChallengeResult.user_id == athlete_id, ChallengeResult.status == "completed")
@@ -351,9 +382,9 @@ def create_football_club(db: Session, football_club: FootballClub, id_u: int):
     new_football_club = FootballClub(
         user_id = id_u,
         name =  football_club.name,
-        country = football_club.country
+        country = football_club.country,
+        info = football_club.info
     )
-
     db.add(new_football_club)
     return new_football_club
 
@@ -435,6 +466,14 @@ def application_permision(db, id_trial, id_athlete):
         return True
     return False
 
+def my_trial_applications(db, id_athlete):
+    stmt = select(TrialApplications).where(TrialApplications.id_athlete == id_athlete)
+    result = db.scalars(stmt).all()
+    trial_list = []
+    for trial in result:
+        trial_list.append(trial.id_trial)
+    return trial_list
+
 def get_trial_application_by_id(db, id_trial, id_athlete):
     stms = select(TrialApplications).where(TrialApplications.id_trial == id_trial).where(TrialApplications.id_athlete == id_athlete)
     return db.scalars(stms).first()
@@ -444,12 +483,32 @@ def delete_trial_application(db, trial_application):
     return True
 
 def get_all_trials(db):
-    stms = select(Trial).order_by(Trial.id_trial)
-    return db.scalars(stms).all()
+    trials_list = []
+    stmt = (select(Trial).order_by(Trial.id_trial))
+    result = db.scalars(stmt).all()
+    for trial in result:
+        stmt2 = select(FootballClub).where(FootballClub.user_id == trial.id_club)
+        result2 = db.scalars(stmt2).first()
+        trialResponse = TrialResponse(
+            id_trial = trial.id_trial,
+            until_date = trial.until_date,
+            info = trial.info,
+            requirements = trial.requirements,
+            football_club = result2.name,
+            country = result2.country
+        )
+        trials_list.append(trialResponse)
+
+    return trials_list
 
 def all_applications(db, id_trial):
+    athlete_list = []
     stms = select(TrialApplications).where(TrialApplications.id_trial == id_trial)
-    return db.scalars(stms).all()
+    result = db.scalars(stms).all()
+    for trial_application in result:
+        athlete = get_athlete_by_id(db, trial_application.id_athlete)
+        athlete_list.append(athlete)
+    return athlete_list
 
 def restriction(db, id_athlete, id_challenge):
     index = 0
@@ -464,6 +523,79 @@ def restriction(db, id_athlete, id_challenge):
         return True
     return False
 
+
+def sort_by_field_position(athlete):
+    return athlete.field_position if athlete.field_position else ""
+
+
+def get_my_watchlist(db: Session, id_football_club: int):
+    athletes_list = []
+
+    stmt = select(FavoriteAthlete).where(FavoriteAthlete.club_id == id_football_club)
+    results = db.scalars(stmt).all()
+
+    for result in results:
+        athlete = get_athlete_by_id(db, result.athlete_id)
+        if athlete:
+            athletes_list.append(athlete)
+
+    return sorted(athletes_list, key=sort_by_field_position)
+
+def count_athlete(db: Session):
+    stmt = select(Athlete)
+    result = db.scalars(stmt).all()
+    return len(result)
+
+def count_fc(db:Session):
+    stmt = select(FootballClub)
+    result = db.scalars(stmt).all()
+    return len(result)
+
+def count_analysis(db:Session):
+    stmt = select(ChallengeResult)
+    result = db.scalars(stmt).all()
+    return len(result)
+
+def count_challenges(db:Session):
+    stmt = select(Challenge)
+    result = db.scalars(stmt).all()
+    return len(result)
+
+def count_trials(db:Session):
+    stmt = select(Trial)
+    result = db.scalars(stmt).all()
+    return len(result)
+
+def count_fav_athletes(db:Session):
+    stmt = select(FavoriteAthlete)
+    result = db.scalars(stmt).all()
+    return len(result)
+
+def count_trial_applications(db:Session):
+    stmt = select(TrialApplications)
+    result = db.scalars(stmt).all()
+    return len(result)
+
+def infoPannel(db:Session):
+    total_athletes = count_athlete(db)
+    total_fc = count_fc(db)
+    total_analysis = count_analysis(db)
+    total_challenges = count_challenges(db)
+    total_trials = count_trials(db)
+    total_fav_athletes = count_fav_athletes(db)
+    total_trial_applications = count_trial_applications(db)
+
+    info = CountResponse(
+        athleteCount = total_athletes,
+        footballClubCount = total_fc,
+        analysisCount = total_analysis,
+        challengesCount = total_challenges,
+        trialsCount = total_trials,
+        favoriteAthCount = total_fav_athletes,
+        trialApplicationsCount = total_trial_applications
+        )
+
+    return info
 
 
 
