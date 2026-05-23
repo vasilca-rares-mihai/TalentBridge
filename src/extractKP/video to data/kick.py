@@ -3,40 +3,31 @@ import mediapipe as mp
 import numpy as np
 import os
 import csv
+import math
+from ultralytics import YOLO
 
-folder_principal = r"C:\Users\rares\Desktop\TalentBridge\src\extractKP\videos\dataset\kick"
-nume_fisier_csv = "dataset_kicks.csv"
+# Configurari
+folder_principal = r"C:\Users\rares\Desktop\TalentBridge\src\extractKP\videos\dataset\duble"
+nume_fisier_csv = "dataset_duble_real.csv"
 WINDOW_SIZE = 30
 OVERLAP = 15
+PAS = WINDOW_SIZE - OVERLAP  # Cate cadre stergem ca sa ramana doar overlap-ul (15)
 
-def calculeaza_unghi(a, b, c):
-    a = np.array(a)
-    b = np.array(b)
-    c = np.array(c)
-    radians = np.arctan2(c[1] - b[1], c[0] - b[0]) - np.arctan2(a[1] - b[1], a[0] - b[0])
-    angle = np.abs(radians * 180.0 / np.pi)
-    if angle > 180.0:
-        angle = 360 - angle
-    return angle
-
-def normalizeaza_3d(punct, referinta):
-    return [punct.x - referinta.x, punct.y - referinta.y, punct.z - referinta.z]
-
+# Modele AI
+model_yolo = YOLO('yolov8s.pt')
 mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
+# Generare Antet CSV (12 caracteristici x 30 cadre = 360 coloane + cele 3 initiale)
 antet_csv = ['clip', 'clasa', 'window_id']
-for i in range(WINDOW_SIZE):
-    antet_csv.extend([
-        f'unghi_cot_{i}', f'unghi_umar_{i}', f'unghi_sold_{i}', f'unghi_genunchi_{i}',
-        f'umar_X_{i}', f'umar_Y_{i}', f'umar_Z_{i}',
-        f'cot_X_{i}', f'cot_Y_{i}', f'cot_Z_{i}',
-        f'inch_X_{i}', f'inch_Y_{i}', f'inch_Z_{i}',
-        f'gen_X_{i}', f'gen_Y_{i}', f'gen_Z_{i}',
-        f'glez_X_{i}', f'glez_Y_{i}', f'glez_Z_{i}'
-    ])
+nume_features = ['minge_x', 'minge_y', 'gen_st_x', 'gen_st_y', 'glez_st_x', 'glez_st_y',
+                 'gen_dr_x', 'gen_dr_y', 'glez_dr_x', 'glez_dr_y', 'dist_st', 'dist_dr']
 
-print("Incepem extragerea biomecanica pentru SUTURI...")
+for i in range(WINDOW_SIZE):
+    for feat in nume_features:
+        antet_csv.append(f"{feat}_{i}")
+
+print("Incepem extragerea biomecanica hibrida (YOLO+MP) pentru DUBLE...")
 
 with open(nume_fisier_csv, mode='w', newline='', encoding='utf-8') as f:
     csv_writer = csv.writer(f)
@@ -51,7 +42,7 @@ with open(nume_fisier_csv, mode='w', newline='', encoding='utf-8') as f:
         print(f"---> Procesez clasa: {clasa_curenta}")
 
         for nume_clip in os.listdir(cale_folder_clasa):
-            if not nume_clip.endswith('.mp4'):
+            if not nume_clip.endswith(('.mp4', '.mov', '.avi')):
                 continue
 
             cale_completa = os.path.join(cale_folder_clasa, nume_clip)
@@ -59,62 +50,74 @@ with open(nume_fisier_csv, mode='w', newline='', encoding='utf-8') as f:
             buffer_cadre = []
             window_id = 0
 
+            # Valori de rezerva in caz ca modelul nu detecteaza in primul cadru
+            ultima_minge = (0.5, 0.5)
+            coordonate_om = {'gen_st': (0, 0), 'glez_st': (0, 0), 'gen_dr': (0, 0), 'glez_dr': (0, 0)}
+
             while cap.isOpened():
                 ret, frame = cap.read()
                 if not ret:
                     break
 
+                h, w, _ = frame.shape
                 image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                results = pose.process(image_rgb)
 
+                # 1. Extragere Body (MediaPipe)
+                results = pose.process(image_rgb)
                 if results.pose_landmarks:
                     landmarks = results.pose_landmarks.landmark
+                    # Coordonatele in MP sunt deja normalizate (0.0 - 1.0)
+                    coordonate_om['gen_st'] = (landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].x,
+                                               landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value].y)
+                    coordonate_om['glez_st'] = (landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].x,
+                                                landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value].y)
+                    coordonate_om['gen_dr'] = (landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].x,
+                                               landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value].y)
+                    coordonate_om['glez_dr'] = (landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].x,
+                                                landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value].y)
 
-                    p_umar = landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value]
-                    p_cot = landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value]
-                    p_inch = landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value]
-                    p_sold = landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value]
-                    p_gen = landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value]
-                    p_glez = landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value]
+                # 2. Extragere Minge (YOLO)
+                yolo_results = model_yolo.predict(source=frame, classes=[32], conf=0.15, verbose=False)
+                minge_curenta = ultima_minge
 
-                    umar_2d = [p_umar.x, p_umar.y]
-                    cot_2d = [p_cot.x, p_cot.y]
-                    inch_2d = [p_inch.x, p_inch.y]
-                    sold_2d = [p_sold.x, p_sold.y]
-                    gen_2d = [p_gen.x, p_gen.y]
-                    glez_2d = [p_glez.x, p_glez.y]
+                if len(yolo_results[0].boxes) > 0:
+                    box = yolo_results[0].boxes.xyxy[0]
+                    # Normalizam coordonatele mingii la fel ca la MediaPipe (impartim la latime si inaltime)
+                    x_centru = float((box[0] + box[2]) / 2) / w
+                    y_centru = float((box[1] + box[3]) / 2) / h
+                    minge_curenta = (x_centru, y_centru)
+                    ultima_minge = minge_curenta  # Actualizam memoria
 
-                    unghi_cot = calculeaza_unghi(umar_2d, cot_2d, inch_2d)
-                    unghi_umar = calculeaza_unghi(sold_2d, umar_2d, cot_2d)
-                    unghi_sold = calculeaza_unghi(umar_2d, sold_2d, gen_2d)
-                    unghi_genunchi = calculeaza_unghi(sold_2d, gen_2d, glez_2d)
+                # 3. Calculam distanta (Euclidiana) intre minge si glezne
+                dist_st = math.sqrt((minge_curenta[0] - coordonate_om['glez_st'][0]) ** 2 +
+                                    (minge_curenta[1] - coordonate_om['glez_st'][1]) ** 2)
+                dist_dr = math.sqrt((minge_curenta[0] - coordonate_om['glez_dr'][0]) ** 2 +
+                                    (minge_curenta[1] - coordonate_om['glez_dr'][1]) ** 2)
 
-                    norm_umar = normalizeaza_3d(p_umar, p_sold)
-                    norm_cot = normalizeaza_3d(p_cot, p_sold)
-                    norm_inch = normalizeaza_3d(p_inch, p_sold)
-                    norm_gen = normalizeaza_3d(p_gen, p_sold)
-                    norm_glez = normalizeaza_3d(p_glez, p_sold)
+                # 4. Formare array de caracteristici pentru cadrul curent (12 elemente)
+                date_cadru_curent = [
+                    minge_curenta[0], minge_curenta[1],
+                    coordonate_om['gen_st'][0], coordonate_om['gen_st'][1],
+                    coordonate_om['glez_st'][0], coordonate_om['glez_st'][1],
+                    coordonate_om['gen_dr'][0], coordonate_om['gen_dr'][1],
+                    coordonate_om['glez_dr'][0], coordonate_om['glez_dr'][1],
+                    dist_st, dist_dr
+                ]
 
-                    date_cadru_curent = [
-                        unghi_cot, unghi_umar, unghi_sold, unghi_genunchi,
-                        norm_umar[0], norm_umar[1], norm_umar[2],
-                        norm_cot[0], norm_cot[1], norm_cot[2],
-                        norm_inch[0], norm_inch[1], norm_inch[2],
-                        norm_gen[0], norm_gen[1], norm_gen[2],
-                        norm_glez[0], norm_glez[1], norm_glez[2]
-                    ]
+                buffer_cadre.append(date_cadru_curent)
 
-                    buffer_cadre.append(date_cadru_curent)
+                # 5. Salvare in CSV cu logica ta de Sliding Window
+                if len(buffer_cadre) == WINDOW_SIZE:
+                    rand_final = [nume_clip, clasa_curenta, window_id]
+                    for date_cadru in buffer_cadre:
+                        rand_final.extend(date_cadru)
 
-                    if len(buffer_cadre) == WINDOW_SIZE:
-                        rand_final = [nume_clip, clasa_curenta, window_id]
-                        for date_cadru in buffer_cadre:
-                            rand_final.extend(date_cadru)
+                    csv_writer.writerow(rand_final)
 
-                        csv_writer.writerow(rand_final)
-                        buffer_cadre = buffer_cadre[OVERLAP:]
-                        window_id += 1
+                    # Daca WINDOW e 30 si OVERLAP e 15, pastram ultimele 15
+                    buffer_cadre = buffer_cadre[PAS:]
+                    window_id += 1
 
             cap.release()
 
-print(f"\nGata! Datele pentru suturi au fost salvate in {nume_fisier_csv}")
+print(f"\nGata! Datele pentru duble au fost salvate in {nume_fisier_csv}")

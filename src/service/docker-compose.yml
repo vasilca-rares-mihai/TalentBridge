@@ -69,6 +69,7 @@ services:
     container_name: tb_analysis_worker
     volumes:
       - ..:/app
+      - ./service/analysis_worker/app/data:/app/service/analysis_worker/app/data
     depends_on:
       - redis
       - talent-bridge-db

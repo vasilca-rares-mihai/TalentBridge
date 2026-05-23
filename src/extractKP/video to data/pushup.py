@@ -4,42 +4,45 @@ import numpy as np
 import os
 import csv
 
-folder_principal = r"C:\Users\rares\Desktop\TalentBridge\src\extractKP\dataset"
-nume_fisier_csv = "dataset_xyz_unghiuri_varianta3.csv"
-WINDOW_SIZE = 30
-OVERLAP = 15
+folder_principal = r"C:\Users\rares\Desktop\TBignore\videos\dataset\pushup"
+nume_fisier_csv = "dataset_unghiuri_60frames.csv"
+
+WINDOW_SIZE = 60
+OVERLAP = 30
 
 
 def calculeaza_unghi(a, b, c):
     a = np.array(a)
     b = np.array(b)
     c = np.array(c)
+
     radians = np.arctan2(c[1] - b[1], c[0] - b[0]) - np.arctan2(a[1] - b[1], a[0] - b[0])
     angle = np.abs(radians * 180.0 / np.pi)
+
     if angle > 180.0:
         angle = 360 - angle
+
     return angle
 
 
-def normalizeaza_3d(punct, referinta):
-    return [punct.x - referinta.x, punct.y - referinta.y, punct.z - referinta.z]
-
-
 mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+pose = mp_pose.Pose(
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
 
+# ANTET CSV: 4 unghiuri × 60 cadre
 antet_csv = ['clip', 'clasa', 'window_id']
+
 for i in range(WINDOW_SIZE):
     antet_csv.extend([
-        f'unghi_cot_{i}', f'unghi_umar_{i}', f'unghi_sold_{i}', f'unghi_genunchi_{i}',
-        f'umar_X_{i}', f'umar_Y_{i}', f'umar_Z_{i}',
-        f'cot_X_{i}', f'cot_Y_{i}', f'cot_Z_{i}',
-        f'inch_X_{i}', f'inch_Y_{i}', f'inch_Z_{i}',
-        f'gen_X_{i}', f'gen_Y_{i}', f'gen_Z_{i}',
-        f'glez_X_{i}', f'glez_Y_{i}', f'glez_Z_{i}'
+        f'unghi_cot_{i}',
+        f'unghi_umar_{i}',
+        f'unghi_sold_{i}',
+        f'unghi_genunchi_{i}'
     ])
 
-print("Incepem extragerea suprema. Va dura putin...")
+print("Încep extragerea unghiurilor pe ferestre de 60 cadre...")
 
 with open(nume_fisier_csv, mode='w', newline='', encoding='utf-8') as f:
     csv_writer = csv.writer(f)
@@ -47,6 +50,7 @@ with open(nume_fisier_csv, mode='w', newline='', encoding='utf-8') as f:
 
     for nume_folder in os.listdir(folder_principal):
         cale_folder_clasa = os.path.join(folder_principal, nume_folder)
+
         if not os.path.isdir(cale_folder_clasa):
             continue
 
@@ -81,44 +85,39 @@ with open(nume_fisier_csv, mode='w', newline='', encoding='utf-8') as f:
                     p_gen = landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value]
                     p_glez = landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value]
 
-                    umar_2d = [p_umar.x, p_umar.y]
-                    cot_2d = [p_cot.x, p_cot.y]
-                    inch_2d = [p_inch.x, p_inch.y]
-                    sold_2d = [p_sold.x, p_sold.y]
-                    gen_2d = [p_gen.x, p_gen.y]
-                    glez_2d = [p_glez.x, p_glez.y]
+                    umar = [p_umar.x, p_umar.y]
+                    cot = [p_cot.x, p_cot.y]
+                    inch = [p_inch.x, p_inch.y]
+                    sold = [p_sold.x, p_sold.y]
+                    gen = [p_gen.x, p_gen.y]
+                    glez = [p_glez.x, p_glez.y]
 
-                    unghi_cot = calculeaza_unghi(umar_2d, cot_2d, inch_2d)
-                    unghi_umar = calculeaza_unghi(sold_2d, umar_2d, cot_2d)
-                    unghi_sold = calculeaza_unghi(umar_2d, sold_2d, gen_2d)
-                    unghi_genunchi = calculeaza_unghi(sold_2d, gen_2d, glez_2d)
-
-                    norm_umar = normalizeaza_3d(p_umar, p_sold)
-                    norm_cot = normalizeaza_3d(p_cot, p_sold)
-                    norm_inch = normalizeaza_3d(p_inch, p_sold)
-                    norm_gen = normalizeaza_3d(p_gen, p_sold)
-                    norm_glez = normalizeaza_3d(p_glez, p_sold)
+                    unghi_cot = calculeaza_unghi(umar, cot, inch)
+                    unghi_umar = calculeaza_unghi(sold, umar, cot)
+                    unghi_sold = calculeaza_unghi(umar, sold, gen)
+                    unghi_genunchi = calculeaza_unghi(sold, gen, glez)
 
                     date_cadru_curent = [
-                        unghi_cot, unghi_umar, unghi_sold, unghi_genunchi,
-                        norm_umar[0], norm_umar[1], norm_umar[2],
-                        norm_cot[0], norm_cot[1], norm_cot[2],
-                        norm_inch[0], norm_inch[1], norm_inch[2],
-                        norm_gen[0], norm_gen[1], norm_gen[2],
-                        norm_glez[0], norm_glez[1], norm_glez[2]
+                        unghi_cot,
+                        unghi_umar,
+                        unghi_sold,
+                        unghi_genunchi
                     ]
 
                     buffer_cadre.append(date_cadru_curent)
 
                     if len(buffer_cadre) == WINDOW_SIZE:
                         rand_final = [nume_clip, clasa_curenta, window_id]
+
                         for date_cadru in buffer_cadre:
                             rand_final.extend(date_cadru)
 
                         csv_writer.writerow(rand_final)
+
+                        # overlap 30
                         buffer_cadre = buffer_cadre[OVERLAP:]
                         window_id += 1
 
             cap.release()
 
-print(f"\nGata! Noul dataset HIBRID este salvat in: {nume_fisier_csv}")
+print(f"\nGata! Datasetul este salvat în: {nume_fisier_csv}")

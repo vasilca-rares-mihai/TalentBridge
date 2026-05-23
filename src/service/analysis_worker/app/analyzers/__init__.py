@@ -7,3 +7,5 @@ from .base import VideoAnalyzer
 from .base import mp_pose
 from .situp import SitupAnalyzer
 from .kick import KickAnalyzer
+from .long_jumps import LongJumpAnalyzer
+from .double import DubleAnalyzer

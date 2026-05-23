@@ -1,0 +1,20 @@
+# Medii virtuale Python
+.venv/
+venv/
+env/
+
+# Cache-ul Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Fisiere de sistem / Git
+.git/
+.vscode/
+.idea/
+
+# Date masive (poti ajusta in functie de unde tii modelele si videourile)
+*.mp4
+*.avi
+*.csv
+# Lasa doar modelele (.h5, .pkl, .npy) de care are nevoie aplicatia!

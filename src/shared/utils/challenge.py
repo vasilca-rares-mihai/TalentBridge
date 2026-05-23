@@ -1,4 +1,5 @@
-from service.analysis_worker.app.analyzers import SquatAnalyzer, PushupAnalyzer, StepAnalyzer, PullupAnalyzer, VerticalJumpAnalyzer, SitupAnalyzer, KickAnalyzer
+from service.analysis_worker.app.analyzers import (SquatAnalyzer, PushupAnalyzer, StepAnalyzer,
+                                                   PullupAnalyzer, VerticalJumpAnalyzer, SitupAnalyzer, KickAnalyzer, LongJumpAnalyzer, DubleAnalyzer)
 ANALYZERS = {
     'pushup': PushupAnalyzer, #1
     'squat': SquatAnalyzer, #3
@@ -6,7 +7,9 @@ ANALYZERS = {
     'pullup': PullupAnalyzer, #2
     'vertical jump': VerticalJumpAnalyzer, #5
     'situp': SitupAnalyzer, #6
-    "kick": KickAnalyzer, #7
+    'kick': KickAnalyzer, #7
+    'long jump': LongJumpAnalyzer,
+    'double': DubleAnalyzer
 }
 videos_dir = "service/video_storage/"
 
