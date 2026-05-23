@@ -4,3 +4,32 @@ __pycache__/
 .venv/
 .env
 src/.dockerignore
+# Python
+__pycache__/
+*.pyc
+
+# AI / ML
+*.h5
+*.pkl
+*.pt
+*.npy
+
+# Datasets
+*.csv
+
+# Videos
+*.mp4
+
+# MySQL
+mysql_data/
+ib_logfile*
+ibtmp1
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+
+# Env
+.env
