@@ -33,3 +33,6 @@ ibtmp1
 
 # Env
 .env
+
+src/extractKP/csv/*.csv
+src/extractKP/train/*.csv
