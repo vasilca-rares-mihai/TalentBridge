@@ -9,6 +9,17 @@ from shared.crud import data_access
 from shared.crud import security
 from shared.schemas.schemas import AthleteBase, FootballClubBase, CreateAthleteRequest, CreateFootballClubRequest
 from shared.utils.enums import RolesEnum
+from fastapi.security import HTTPAuthorizationCredentials
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+from fastapi import FastAPI, APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from starlette import status
+
+from shared.core.database import get_db
+from shared.crud import data_access
+from shared.crud import security
+from shared.schemas.schemas import AthleteBase, FootballClubBase, CreateAthleteRequest, CreateFootballClubRequest
+from shared.utils.enums import RolesEnum
 
 router = APIRouter(prefix="/api/unauthenticated", tags=["unauthenticated"])
 

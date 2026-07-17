@@ -1,26 +1,25 @@
 from typing import List
 
-from sqlalchemy.exc import SQLAlchemyError
+import time
+
+from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from sqlalchemy.orm import Session
 from sqlalchemy import select, delete
 from sqlalchemy.sql.functions import current_user
 from sqlalchemy import select
 
-from service.analysis_worker.app.analyzers import StepAnalyzer
 from shared.crud.security import security
 from shared.crud import security
 from shared.models.sql_models import Athlete, Attribute, ChallengeResult, Challenge, FootballClub, FavoriteAthlete, \
-    Trial, TrialApplications
+    Trial, TrialApplications, Users
 from shared.schemas.schemas import AthleteUpdate, AthleteSearched, AttributeUpdate, TrialResponse, CreateAthleteRequest, \
     CountResponse, FootballClubSearched
 from typing import Optional
 from shared.utils.enums import GenderEnum, PositionsEnum, WeakFootEnum, RolesEnum
 from datetime import date, timedelta
-from service.auth_service.app.models.sql_models import Users
 from shared.utils.challenge import defpassword
 
 
-#....................................................athletes utils..........................................
 def list_athletes(db: Session) -> List[Athlete]:
     stms = select(Athlete)
     return db.scalars(stms).all()
@@ -64,7 +63,7 @@ def delete_all(db: Session):
 
 def all_or_completed_challenges(db, user_id, index):
     all_challenges= []
-    stms = select(Challenge) # challenge table
+    stms = select(Challenge)
     challenges = db.scalars(stms)
     for challenge in challenges:
         all_challenges.append(challenge)
@@ -72,7 +71,7 @@ def all_or_completed_challenges(db, user_id, index):
     limit_date = date.today() - timedelta(days=90)
 
     completed_challenges = []
-    stms2 = select(ChallengeResult).where(ChallengeResult.user_id == user_id) #challenge result table
+    stms2 = select(ChallengeResult).where(ChallengeResult.user_id == user_id)
     challanges2 = db.scalars(stms2)
     for challenge in challanges2:
         if challenge.date_recorded > limit_date:
@@ -141,6 +140,26 @@ def update_user_attributes(attribute_updated: AttributeUpdate, db: Session, id_u
         db.commit()
         db.refresh(attribute)
     return attribute
+
+def overwrite_attributes(attribute_updated: AttributeUpdate, db: Session, id_u: int):
+    for attempt in range(4):
+        try:
+            stmt = select(Attribute).where(Attribute.user_id == id_u)
+            attribute = db.scalars(stmt).first()
+            if attribute:
+                attributes = attribute_updated.model_dump(exclude_unset=True)
+                for key, value in attributes.items():
+                    if value is not None:
+                        setattr(attribute, key, value)
+                db.add(attribute)
+                db.commit()
+                db.refresh(attribute)
+            return attribute
+        except OperationalError:
+            db.rollback()
+            if attempt == 3:
+                raise
+            time.sleep(0.3 * (attempt + 1))
 
 def delete_from_users_table(db: Session, user_id: int):
     stms = select(Users).where(Users.id == user_id)
@@ -231,7 +250,6 @@ def find_athlete_by_email(db: Session, email: str):
     stms = select(Athlete).where(Users.email == email)
     return db.scalars(stms).one_or_none()
 
-#................................attribute.................................................................
 def create_attribute(db: Session, id_u: int):
     attributes = Attribute(
         user_id= id_u,
@@ -272,7 +290,6 @@ def update_attribute(db: Session, id_athlete: int, update_data: dict):
     db.refresh(db_attribute)
     return db_attribute
 
-#.................................challenge result..........................................................
 
 def create_challenge_result(db: Session, id_challenge: int, id_u: int, result: int):
     new_challenge_result = ChallengeResult(
@@ -335,7 +352,6 @@ def init_challenge_result(db: Session, id_challenge: int, id_athlete: int):
     db.refresh(db_result)
     return db_result
 
-#....................................challenge.....................................
 def get_challenge_by_id(db: Session, id_challenge: int) -> str:
     stms = select(Challenge).where(Challenge.id_challenge == id_challenge)
     return db.scalars(stms).first()
@@ -356,7 +372,6 @@ def create_challenge(db: Session, challenge: Challenge):
     db.add(new_challenge)
     return new_challenge
 
-#..........................user..........................
 def create_user(db, email, password, role):
     new_user = Users(
         email= email,

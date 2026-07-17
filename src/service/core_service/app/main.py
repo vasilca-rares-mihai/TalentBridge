@@ -3,7 +3,10 @@ from starlette import status
 
 from shared.crud.security import get_current_user
 from .routes import admin, athlete, football_club
+
 app = FastAPI(title="API TalentBridge/ CORE SERVICE")
+
+
 
 @app.get("/protected-resource", status_code=status.HTTP_200_OK)
 def protected_router(current_user: dict = Depends(get_current_user)):

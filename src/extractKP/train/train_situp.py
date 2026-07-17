@@ -11,7 +11,7 @@ import os
 import joblib
 
 print("Incarcam datele din CSV-ul de abdomene (sit-ups)...")
-nume_csv = '../csv/dataset_situps.csv'
+nume_csv = r"C:\Users\rares\Desktop\TalentBridge\src\extractKP\csv\dataset_situps.csv"
 
 if not os.path.exists(nume_csv):
     print(f"Eroare: Nu gasesc fisierul {nume_csv}.")
@@ -90,4 +90,27 @@ plt.xlabel('Epoci (Iteratii de invatare)')
 plt.ylabel('Acuratete')
 plt.legend()
 plt.grid(True)
-plt.show()
+plt.savefig('evolutie_acuratete_situps.png')
+plt.close()
+
+# Generare Matrice de Confuzie
+from sklearn.metrics import confusion_matrix, classification_report
+import seaborn as sns
+
+predictii = model.predict(X_test)
+predictii_clase = np.argmax(predictii, axis=1)
+
+cm = confusion_matrix(y_test, predictii_clase)
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+            xticklabels=label_encoder.classes_, 
+            yticklabels=label_encoder.classes_)
+plt.title('Matrice de Confuzie - Abdomene')
+plt.xlabel('Predictie')
+plt.ylabel('Adevarat')
+plt.tight_layout()
+plt.savefig('matrice_confuzie_situps.png')
+plt.close()
+
+print("\nAu fost salvate imaginile: 'evolutie_acuratete_situps.png' si 'matrice_confuzie_situps.png'.")
+print(classification_report(y_test, predictii_clase, target_names=label_encoder.classes_))

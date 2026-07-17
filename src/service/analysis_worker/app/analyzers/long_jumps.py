@@ -1,172 +1,234 @@
+import os
+import math
+from typing import List
+
 import cv2
 import numpy as np
 import joblib
 from tensorflow.keras.models import load_model
-from collections import Counter
-from typing import List
-import os
 
-from shared.models.sql_models import Attribute
 from shared.schemas.schemas import AttributeUpdate, ChallengeResult
 from .base import VideoAnalyzer, mp_pose
 from ..utils.geometry import calculate_angle
 
+
 class LongJumpAnalyzer(VideoAnalyzer):
+    """
+    Saritura in lungime (standing long jump) — HIBRID, 2 clase: perfect / fall_landing.
+
+    DISCRIMINATORUL = DISTANTA. O saritura te duce IN FATA pe o distanta; orice altceva
+    (mers inapoi, ridicare de pe jos dupa cadere, balansul de prep, tremurul de detectie)
+    ramane pe loc. Mersul inapoi nici nu produce zbor (un picior mereu pe sol).
+    Asa numaram doar sarituri reale, FARA sa taiem caderile (care au zbor mic din natura lor).
+
+      * 1D CNN da verdictul principal (perfect / fall_landing) pe fereastra aliniata.
+      * Euristica (caderea soldului dupa aterizare) corecteaza cazurile clare.
+      * Scor leaderboard = cea mai buna distanta (doar din sarituri corecte).
+    """
+
+    LM_NAMES = [
+        'left_shoulder', 'right_shoulder', 'left_elbow', 'right_elbow',
+        'left_wrist', 'right_wrist', 'left_hip', 'right_hip',
+        'left_knee', 'right_knee', 'left_ankle', 'right_ankle',
+        'left_foot_index', 'right_foot_index',
+    ]
+
     def __init__(self, video_path, output_path=None):
         super().__init__(video_path, window_name="Long Jump Analysis", output_path=output_path)
 
         current_dir = os.path.dirname(os.path.abspath(__file__))
-
-        # Incarcam fisierele pentru SARITURA IN LUNGIME
-        cale_model = os.path.join(current_dir, 'data/model_jump_30f.h5')
-        cale_clase = os.path.join(current_dir, 'data/clase_jump_30f.npy')
-        cale_scaler = os.path.join(current_dir, 'data/scaler_jump_30f.pkl')
-
-        if not os.path.exists(cale_model):
-            print(f"Nu gasesc modelul AI la: {cale_model}")
-
-        self.model = load_model(cale_model)
-        self.clase = np.load(cale_clase, allow_pickle=True)
-        self.scaler = joblib.load(cale_scaler)
+        self.model = load_model(os.path.join(current_dir, 'data/model_jump_30f.h5'))
+        self.clase = np.load(os.path.join(current_dir, 'data/clase_jump_30f.npy'), allow_pickle=True)
+        self.scaler = joblib.load(os.path.join(current_dir, 'data/scaler_jump_30f.pkl'))
 
         self.WINDOW_SIZE = 30
-        self.buffer_cadre = []
-
-        self.LUNGIME_VOTARE = 15
-        self.istoric_predictii = []
-        self.predictie_curenta = "Asteptare"
+        self.FEATS = 64
 
         self.total_repetitii = 0
         self.corecte = 0
-
-        # Structura pentru greselile specifice sariturii
-        self.greseli = {
-            'stiff_landing': 0,
-            'poor_extension': 0
-        }
+        self.greseli = {'fall_landing': 0}
+        self.predictie_curenta = "Asteptare"
 
         self.stare_miscare = "STAND"
-        self.verdict_repetitie = "perfect"
+        self.PRE_CONTEXT = 5
+        self.COOLDOWN = 10
+        self.LOAD_KNEE = 150
+        self.AIR_MARGIN = 0.04
+        self.MIN_FLIGHT = 3
+
+        self.pre = []
+        self.jump_buf = None
+        self.flight_frames = 0
+        self.cooldown = 0
+        self.ground_y = 0.0
+        self.stand_span_y = 0.0
+
+        self.takeoff_x = None
+        self.last_distance_m = 0.0
+        self.best_distance_m = 0.0
+        self.air_peak = 0.0
+        self.MIN_JUMP_DIST = 0.20
+
+        self.takeoff_hip_y = 0.0
+        self.max_hip_y_land = 0.0
+        self.FALL_DROP = 0.20
+        self.NO_FALL_DROP = 0.10
+
+        self.cur_knee = 180.0
+        self.cur_ankle_y = 1.0
+        self.cur_hip_x = 0.5
+        self.cur_hip_y = 0.5
+        self.cur_sh_y = 0.4
+
+    def _P(self, landmarks, name):
+        return landmarks[getattr(mp_pose.PoseLandmark, name.upper()).value]
 
     def extractLandmarks(self, landmarks):
-        def get_landmark_data(lm):
-            return [lm.x, lm.y, lm.z, lm.visibility]
+        pts = {n: self._P(landmarks, n) for n in self.LM_NAMES}
 
-        # 1. Extragem aceleasi 10 puncte de interes
-        l_sh = landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value]
-        r_sh = landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value]
-        l_hip = landmarks[mp_pose.PoseLandmark.LEFT_HIP.value]
-        r_hip = landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value]
-        l_kn = landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value]
-        r_kn = landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value]
-        l_an = landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value]
-        r_an = landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value]
-        l_fi = landmarks[mp_pose.PoseLandmark.LEFT_FOOT_INDEX.value]
-        r_fi = landmarks[mp_pose.PoseLandmark.RIGHT_FOOT_INDEX.value]
+        mhx = (pts['left_hip'].x + pts['right_hip'].x) / 2.0
+        mhy = (pts['left_hip'].y + pts['right_hip'].y) / 2.0
+        mhz = (pts['left_hip'].z + pts['right_hip'].z) / 2.0
+        msx = (pts['left_shoulder'].x + pts['right_shoulder'].x) / 2.0
+        msy = (pts['left_shoulder'].y + pts['right_shoulder'].y) / 2.0
+        msz = (pts['left_shoulder'].z + pts['right_shoulder'].z) / 2.0
+        scale = math.sqrt((msx - mhx) ** 2 + (msy - mhy) ** 2 + (msz - mhz) ** 2)
+        if scale < 0.001:
+            scale = 1.0
 
-        features = []
-        features.extend(get_landmark_data(l_sh))
-        features.extend(get_landmark_data(r_sh))
-        features.extend(get_landmark_data(l_hip))
-        features.extend(get_landmark_data(r_hip))
-        features.extend(get_landmark_data(l_kn))
-        features.extend(get_landmark_data(r_kn))
-        features.extend(get_landmark_data(l_an))
-        features.extend(get_landmark_data(r_an))
-        features.extend(get_landmark_data(l_fi))
-        features.extend(get_landmark_data(r_fi))
+        feats = []
+        for n in self.LM_NAMES:
+            lm = pts[n]
+            feats.extend([(lm.x - mhx) / scale, (lm.y - mhy) / scale, (lm.z - mhz) / scale, lm.visibility])
 
-        # 2. Calculam cele 6 unghiuri ale picioarelor
-        unghi_sold_l = calculate_angle([l_sh.x, l_sh.y], [l_hip.x, l_hip.y], [l_kn.x, l_kn.y])
-        unghi_genunchi_l = calculate_angle([l_hip.x, l_hip.y], [l_kn.x, l_kn.y], [l_an.x, l_an.y])
-        unghi_glezna_l = calculate_angle([l_kn.x, l_kn.y], [l_an.x, l_an.y], [l_fi.x, l_fi.y])
+        def g(n):
+            return [pts[n].x, pts[n].y]
 
-        unghi_sold_r = calculate_angle([r_sh.x, r_sh.y], [r_hip.x, r_hip.y], [r_kn.x, r_kn.y])
-        unghi_genunchi_r = calculate_angle([r_hip.x, r_hip.y], [r_kn.x, r_kn.y], [r_an.x, r_an.y])
-        unghi_glezna_r = calculate_angle([r_kn.x, r_kn.y], [r_an.x, r_an.y], [r_fi.x, r_fi.y])
+        feats.extend([
+            calculate_angle(g('left_hip'), g('left_knee'), g('left_ankle')),
+            calculate_angle(g('right_hip'), g('right_knee'), g('right_ankle')),
+            calculate_angle(g('left_shoulder'), g('left_hip'), g('left_knee')),
+            calculate_angle(g('right_shoulder'), g('right_hip'), g('right_knee')),
+            calculate_angle(g('left_shoulder'), g('left_elbow'), g('left_wrist')),
+            calculate_angle(g('right_shoulder'), g('right_elbow'), g('right_wrist')),
+            calculate_angle(g('left_hip'), g('left_shoulder'), g('left_elbow')),
+            calculate_angle(g('right_hip'), g('right_shoulder'), g('right_elbow')),
+        ])
 
-        features.extend([unghi_sold_l, unghi_genunchi_l, unghi_glezna_l, unghi_sold_r, unghi_genunchi_r, unghi_glezna_r])
+        self.cur_knee = (feats[56] + feats[57]) / 2.0
+        self.cur_ankle_y = max(pts['left_ankle'].y, pts['right_ankle'].y)
+        self.cur_hip_x = mhx
+        self.cur_hip_y = mhy
+        self.cur_sh_y = msy
+        return feats
 
-        # Returneaza exact 46 de valori per cadru
-        return features
+    def _distanta_m(self, dx_norm):
+        if self.stand_span_y < 0.01 or self.h <= 0 or not self.athlete_height:
+            return 0.0
+        metri_pe_unitate_y = (0.8 * self.athlete_height) / self.stand_span_y
+        aspect = self.w / self.h if self.h else 1.0
+        return abs(dx_norm) * aspect * metri_pe_unitate_y
 
-    def checkRep(self, date_cadru_curent):
-        # Indexul 41 contine 'unghi_genunchi_l'
-        unghi_genunchi_curent = date_cadru_curent[41]
-        self.buffer_cadre.append(date_cadru_curent)
+    def _resample(self, buf):
+        if len(buf) >= self.WINDOW_SIZE:
+            idx = np.linspace(0, len(buf) - 1, self.WINDOW_SIZE).astype(int)
+            return [buf[i] for i in idx]
+        return buf + [buf[-1]] * (self.WINDOW_SIZE - len(buf))
 
-        if len(self.buffer_cadre) == self.WINDOW_SIZE:
-            buffer_plat = np.array(self.buffer_cadre)
-            fereastra_liniara = buffer_plat.reshape(1, -1)
+    def checkRep(self, feats):
+        knee = self.cur_knee
 
-            # Scalam datele
-            fereastra_scalata_liniara = self.scaler.transform(fereastra_liniara)
-            # Reshape pentru CNN 1D
-            input_model = fereastra_scalata_liniara.reshape(1, self.WINDOW_SIZE, 46)
+        if self.jump_buf is not None:
+            self.jump_buf.append(feats)
+        else:
+            self.pre.append(feats)
+            self.pre = self.pre[-self.PRE_CONTEXT:]
 
-            # Predictie
-            predictii_brute = self.model.predict(input_model, verbose=0)
-            idx_clasa = np.argmax(predictii_brute)
-            clasa_ghicita = str(self.clase[idx_clasa])
+        if self.stare_miscare == "STAND":
+            self.ground_y = max(self.ground_y, self.cur_ankle_y)
+            self.stand_span_y = max(self.stand_span_y, self.cur_ankle_y - self.cur_sh_y)
+            if knee < self.LOAD_KNEE:
+                self.stare_miscare = "LOAD"
+                self.flight_frames = 0
+                self.air_peak = 0.0
+                self.jump_buf = list(self.pre)
+                self.takeoff_x = self.cur_hip_x
+                self.takeoff_hip_y = self.cur_hip_y
+                self.max_hip_y_land = self.cur_hip_y
 
-            # Votare
-            self.istoric_predictii.append(clasa_ghicita)
-            if len(self.istoric_predictii) > self.LUNGIME_VOTARE:
-                self.istoric_predictii.pop(0)
+        elif self.stare_miscare == "LOAD":
+            if self.cur_ankle_y < self.ground_y - self.AIR_MARGIN:
+                self.stare_miscare = "FLIGHT"
+                self.takeoff_x = self.cur_hip_x
+                self.takeoff_hip_y = self.cur_hip_y
 
-            voturi = Counter(self.istoric_predictii)
-            self.predictie_curenta = voturi.most_common(1)[0][0]
+        elif self.stare_miscare == "FLIGHT":
+            self.flight_frames += 1
+            self.air_peak = max(self.air_peak, self.ground_y - self.cur_ankle_y)
+            if self.cur_ankle_y >= self.ground_y - self.AIR_MARGIN and self.flight_frames >= self.MIN_FLIGHT:
+                self.stare_miscare = "LAND"
+                self.cooldown = self.COOLDOWN
+                self.last_distance_m = self._distanta_m(self.cur_hip_x - self.takeoff_x)
 
-            # Logica de numarare a sariturii
-            # Când genunchiul coboară sub 130 de grade (flexia de elan), incepe actiunea
-            if unghi_genunchi_curent < 130 and self.stare_miscare == "STAND":
-                self.stare_miscare = "JUMPING"
-                self.verdict_repetitie = "perfect"
-
-            # In timpul sariturii (care dureaza ~1 secunda si trece prin buffer), marcam daca modelul detecteaza o eroare
-            if self.stare_miscare == "JUMPING":
-                if self.predictie_curenta != "perfect":
-                    self.verdict_repetitie = self.predictie_curenta
-
-            # Când atletul se ridică în picioare după aterizare (genunchi drept > 165 grade), saritura s-a incheiat
-            if unghi_genunchi_curent > 165 and self.stare_miscare == "JUMPING":
+        elif self.stare_miscare == "LAND":
+            self.max_hip_y_land = max(self.max_hip_y_land, self.cur_hip_y)
+            self.cooldown -= 1
+            if self.cooldown <= 0:
+                self._finalizeaza()
+                self.jump_buf = None
+                self.pre = []
                 self.stare_miscare = "STAND"
-                self.total_repetitii += 1
-                self.counter = self.total_repetitii
 
-                if self.verdict_repetitie == "perfect":
-                    self.corecte += 1
-                    print(f"Săritura {self.total_repetitii}: PERFECTĂ!")
-                else:
-                    if self.verdict_repetitie in self.greseli:
-                        self.greseli[self.verdict_repetitie] += 1
-                    print(f"Săritura {self.total_repetitii}: GREȘITĂ ({self.verdict_repetitie.upper()})")
+    def _finalizeaza(self):
+        hip_drop = self.max_hip_y_land - self.takeoff_hip_y
 
-                print(f"Total Sărituri: {self.total_repetitii} | Corecte: {self.corecte}")
+        if self.last_distance_m < self.MIN_JUMP_DIST:
+            print(f"  [diag] ignorat (pe loc) | dist={self.last_distance_m:.2f} air={self.air_peak:.3f} drop={hip_drop:.3f}")
+            return
 
-            self.buffer_cadre.pop(0)
+        rep = self._resample(self.jump_buf)
+        x = np.array(rep, dtype=np.float32).reshape(1, -1)
+        x = self.scaler.transform(x).reshape(1, self.WINDOW_SIZE, self.FEATS)
+        pred = self.model.predict(x, verbose=0)
+        verdict = str(self.clase[int(np.argmax(pred))])
 
-    def displayInfo(self, date_cadru_curent, image):
-        if len(date_cadru_curent) == 46:
-            unghi_genunchi_afisare = int(date_cadru_curent[41])
-            cv2.putText(image, f"Unghi Genunchi: {unghi_genunchi_afisare}", (30, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.7,
-                        (255, 192, 203), 2)
+        if hip_drop > self.FALL_DROP:
+            verdict = "fall_landing"
+        elif hip_drop < self.NO_FALL_DROP and verdict == "fall_landing":
+            verdict = "perfect"
 
-        cv2.putText(image, f"Sarituri Corecte: {self.corecte}/{self.total_repetitii}", (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                    (0, 255, 0), 2)
+        self.total_repetitii += 1
+        self.counter = self.total_repetitii
+        self.predictie_curenta = verdict
 
-        culoare_status = (0, 255, 0) if self.predictie_curenta == 'perfect' else (0, 0, 255)
-        cv2.putText(image, f"Status AI: {self.predictie_curenta.upper()}", (30, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8,
-                    culoare_status, 2)
+        if verdict == "perfect":
+            self.corecte += 1
+            if self.last_distance_m > self.best_distance_m:
+                self.best_distance_m = self.last_distance_m
+        elif verdict in self.greseli:
+            self.greseli[verdict] += 1
+
+        print(f"Saritura {self.total_repetitii}: {verdict.upper()} | dist={self.last_distance_m:.2f}m "
+              f"air={self.air_peak:.3f} drop={hip_drop:.3f} | Best: {self.best_distance_m:.2f}m")
+
+    def displayInfo(self, _feats, image):
+        cv2.putText(image, f"Corecte: {self.corecte}/{self.total_repetitii}", (30, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        culoare = (0, 255, 0) if self.predictie_curenta == 'perfect' else (0, 0, 255)
+        cv2.putText(image, f"Status: {self.predictie_curenta.upper()}", (30, 90),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, culoare, 2)
+        cv2.putText(image, f"Best: {self.best_distance_m:.2f} m", (30, 125),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+        cv2.putText(image, f"Faza: {self.stare_miscare}", (30, 155),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, (200, 200, 200), 1)
+
+    def getScore(self):
+        return round(float(self.best_distance_m), 2)
 
     def calculateAttribute(self, challenges_results: List[ChallengeResult]):
-        # Saritura in lungime de obicei masoara Explosivitatea/Puterea (Power/Strength).
-        # Ramane pe acelasi mecanism ca la tine, poti ajusta formula daca vrei.
-        strength_ids = {1, 2, 3, 4} # Asigura-te ca ai adaugat ID-ul challenge-ului de saritura
+        strength_ids = {1, 2, 3, 4}
         total_score = 0
-
         for challenge in challenges_results:
             if challenge.challenge_id in strength_ids:
                 total_score += challenge.result_value
-
         return AttributeUpdate(strength=int(total_score * 10))

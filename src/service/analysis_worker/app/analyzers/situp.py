@@ -110,17 +110,28 @@ class SitupAnalyzer(VideoAnalyzer):
 
             if unghi_sold_curent < 100 and self.stare_miscare == "JOS":
                 self.stare_miscare = "SUS"
-                self.verdict_repetitie = "perfect"
+                self.predictii_sus = []
+                self.min_unghi_sold = 180
 
             if self.stare_miscare == "SUS":
-                if self.predictie_curenta != "perfect":
-                    self.verdict_repetitie = self.predictie_curenta
+                self.predictii_sus.append(self.predictie_curenta)
+                if unghi_sold_curent < self.min_unghi_sold:
+                    self.min_unghi_sold = unghi_sold_curent
 
             if unghi_sold_curent > 115 and self.stare_miscare == "SUS":
                 self.stare_miscare = "JOS"
                 self.total_repetitii += 1
-
                 self.counter = self.total_repetitii
+
+                if "feet_lifting" in self.predictii_sus:
+                    self.verdict_repetitie = "feet_lifting"
+                else:
+                    if self.min_unghi_sold > 75:
+                        self.verdict_repetitie = "uncompleted"
+                    elif "perfect" in self.predictii_sus:
+                        self.verdict_repetitie = "perfect"
+                    else:
+                        self.verdict_repetitie = "uncompleted"
 
                 if self.verdict_repetitie == "perfect":
                     self.corecte += 1
@@ -136,8 +147,8 @@ class SitupAnalyzer(VideoAnalyzer):
         cv2.putText(image, f"Corecte: {self.corecte}/{self.total_repetitii}", (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1,
                     (0, 255, 0), 2)
 
-        culoare_status = (0, 255, 0) if self.predictie_curenta == 'perfect' else (0, 0, 255)
-        cv2.putText(image, f"AI: {self.predictie_curenta.upper()}", (30, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8,culoare_status,2)
+        culoare_status = (0, 255, 0) if self.verdict_repetitie == 'perfect' else (0, 0, 255)
+        cv2.putText(image, f"Verdict: {self.verdict_repetitie.upper()}", (30, 90), cv2.FONT_HERSHEY_SIMPLEX, 0.8,culoare_status,2)
 
     def calculateAttribute(self, challenges_results: List[ChallengeResult]):
         core_ids = {4, 5}

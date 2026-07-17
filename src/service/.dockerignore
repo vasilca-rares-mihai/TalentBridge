@@ -1,20 +1,26 @@
-# Medii virtuale Python
-.venv/
-venv/
-env/
-
-# Cache-ul Python
-__pycache__/
+.git
+.venv
+venv
+env
+__pycache__
 *.pyc
 *.pyo
-
-# Fisiere de sistem / Git
-.git/
-.vscode/
-.idea/
-
-# Date masive (poti ajusta in functie de unde tii modelele si videourile)
+mysql_dataa
+video_dataset
+video_storage
+android
+csv_dataset
+diagrama
+docs
+README.md
+connect_db.bat
+.vscode
+.idea
 *.mp4
 *.avi
 *.csv
-# Lasa doar modelele (.h5, .pkl, .npy) de care are nevoie aplicatia!
+# Extensiile noi pentru a bloca transferul modelelor grele la build:
+*.h5
+*.keras
+*.pkl
+*.npy

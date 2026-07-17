@@ -1,132 +1,202 @@
-import cv2
-import mediapipe as mp
-import pandas as pd
-import numpy as np
+"""
+Extractor SARITURA IN LUNGIME — ferestre ALINIATE pe saritura (ca analyzer-ul).
+
+Procesează folderul de clipuri PERFECTE. Pentru fiecare clip ruleaza ACELASI FSM
+ca LongJumpAnalyzer (STAND->LOAD->FLIGHT->LAND + cooldown) si emite cate o fereastra
+per saritura (load -> zbor -> aterizare + cateva cadre dupa), reesantionata la 30 cadre.
+
+Features/cadru (64): 14 landmark-uri x (x,y,z,visibility) normalizate hip-centric/torso
++ 8 unghiuri (genunchi L/R, sold L/R, cot L/R, brat L/R).
+
+INCLUDE BRATELE (coate + incheieturi) — esential pt clasa no_arm_swing.
+
+Greselile (fall_landing / no_arm_swing) se fabrica sintetic in rebuild_long_jump.py.
+
+Output: extractKP/date_sintetice/dataset_jump.csv
+"""
+
+import os
 import math
 
-# Initializam MediaPipe Pose
+import cv2
+import numpy as np
+import pandas as pd
+import mediapipe as mp
+
 mp_pose = mp.solutions.pose
 pose = mp_pose.Pose(static_image_mode=False, min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
-
-# Functie pentru calculul unghiurilor (2D)
-def calculate_angle(a, b, c):
-    a = np.array(a)  # First
-    b = np.array(b)  # Mid
-    c = np.array(c)  # End
-
-    radians = math.atan2(c[1] - b[1], c[0] - b[0]) - math.atan2(a[1] - b[1], a[0] - b[0])
-    angle = np.abs(radians * 180.0 / np.pi)
-
-    if angle > 180.0:
-        angle = 360 - angle
-
-    return angle
-
-
-# Numele coloanelor pentru un cadru
-landmark_names = [
-    'left_shoulder', 'right_shoulder', 'left_hip', 'right_hip',
+# ---- spec canonica (TREBUIE identica in analyzer si train) ----
+LM_NAMES = [
+    'left_shoulder', 'right_shoulder', 'left_elbow', 'right_elbow',
+    'left_wrist', 'right_wrist', 'left_hip', 'right_hip',
     'left_knee', 'right_knee', 'left_ankle', 'right_ankle',
-    'left_foot_index', 'right_foot_index'
+    'left_foot_index', 'right_foot_index',
 ]
-angle_names = [
-    'unghi_sold_l', 'unghi_genunchi_l', 'unghi_glezna_l',
-    'unghi_sold_r', 'unghi_genunchi_r', 'unghi_glezna_r'
+ANGLE_NAMES = [
+    'unghi_genunchi_l', 'unghi_genunchi_r', 'unghi_sold_l', 'unghi_sold_r',
+    'unghi_cot_l', 'unghi_cot_r', 'unghi_brat_l', 'unghi_brat_r',
 ]
-
-# Setam parametrii ferestrei
 WINDOW_SIZE = 30
-STRIDE = 5  # La cate cadre mutam fereastra pentru a genera un nou rand
-video_path = 'jump1.mp4'  # <--- PUNE AICI NUMELE VIDEOCLIPULUI TAU
 
-cap = cv2.VideoCapture(video_path)
-buffer_cadre = []
-toate_ferestrele = []
-fereastra_id = 0
+# ---- praguri FSM (TREBUIE identice cu LongJumpAnalyzer) ----
+LOAD_KNEE = 150
+AIR_MARGIN = 0.04
+MIN_FLIGHT = 3
+PRE_CONTEXT = 5      # cadre pastrate inainte de LOAD
+COOLDOWN = 10        # cadre capturate dupa aterizare (pt a prinde caderea)
 
-print("Incepem procesarea videoclipului...")
-
-while cap.isOpened():
-    ret, frame = cap.read()
-    if not ret:
-        break
-
-    # MediaPipe are nevoie de RGB
-    image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    image.flags.writeable = False
-    results = pose.process(image)
-    image.flags.writeable = True
-
-    if results.pose_landmarks:
-        landmarks = results.pose_landmarks.landmark
-
-        # 1. Extragem coordonatele (x, y, z, v) pentru punctele noastre
-        points = {
-            'left_shoulder': landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value],
-            'right_shoulder': landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value],
-            'left_hip': landmarks[mp_pose.PoseLandmark.LEFT_HIP.value],
-            'right_hip': landmarks[mp_pose.PoseLandmark.RIGHT_HIP.value],
-            'left_knee': landmarks[mp_pose.PoseLandmark.LEFT_KNEE.value],
-            'right_knee': landmarks[mp_pose.PoseLandmark.RIGHT_KNEE.value],
-            'left_ankle': landmarks[mp_pose.PoseLandmark.LEFT_ANKLE.value],
-            'right_ankle': landmarks[mp_pose.PoseLandmark.RIGHT_ANKLE.value],
-            'left_foot_index': landmarks[mp_pose.PoseLandmark.LEFT_FOOT_INDEX.value],
-            'right_foot_index': landmarks[mp_pose.PoseLandmark.RIGHT_FOOT_INDEX.value]
-        }
-
-        # 2. Construim features pentru acest frame
-        frame_features = []
-        for name in landmark_names:
-            lm = points[name]
-            frame_features.extend([lm.x, lm.y, lm.z, lm.visibility])
+DATASET_DIR = r"C:\Users\rares\Desktop\long_jump_dataset\perfect"
+OUT_CSV = r"C:\Users\rares\Desktop\TalentBridge\src\extractKP\date_sintetice\dataset_jump.csv"
 
 
-        # 3. Calculam unghiurile
-        def get_coords(name):
-            return [points[name].x, points[name].y]
+def calculate_angle(a, b, c):
+    a, b, c = np.array(a), np.array(b), np.array(c)
+    rad = math.atan2(c[1] - b[1], c[0] - b[0]) - math.atan2(a[1] - b[1], a[0] - b[0])
+    ang = np.abs(rad * 180.0 / np.pi)
+    return 360 - ang if ang > 180.0 else ang
 
 
-        # Unghiuri stanga
-        u_sold_l = calculate_angle(get_coords('left_shoulder'), get_coords('left_hip'), get_coords('left_knee'))
-        u_gen_l = calculate_angle(get_coords('left_hip'), get_coords('left_knee'), get_coords('left_ankle'))
-        u_glez_l = calculate_angle(get_coords('left_knee'), get_coords('left_ankle'), get_coords('left_foot_index'))
+def L(landmarks, name):
+    return landmarks[getattr(mp_pose.PoseLandmark, name.upper()).value]
 
-        # Unghiuri dreapta
-        u_sold_r = calculate_angle(get_coords('right_shoulder'), get_coords('right_hip'), get_coords('right_knee'))
-        u_gen_r = calculate_angle(get_coords('right_hip'), get_coords('right_knee'), get_coords('right_ankle'))
-        u_glez_r = calculate_angle(get_coords('right_knee'), get_coords('right_ankle'), get_coords('right_foot_index'))
 
-        frame_features.extend([u_sold_l, u_gen_l, u_glez_l, u_sold_r, u_gen_r, u_glez_r])
+def frame_features(landmarks):
+    """Returneaza vectorul de 64 features pt un cadru (normalizat hip-centric/torso)."""
+    pts = {n: L(landmarks, n) for n in LM_NAMES}
 
-        # Adaugam in buffer
-        buffer_cadre.append(frame_features)
+    mhx = (pts['left_hip'].x + pts['right_hip'].x) / 2.0
+    mhy = (pts['left_hip'].y + pts['right_hip'].y) / 2.0
+    mhz = (pts['left_hip'].z + pts['right_hip'].z) / 2.0
+    msx = (pts['left_shoulder'].x + pts['right_shoulder'].x) / 2.0
+    msy = (pts['left_shoulder'].y + pts['right_shoulder'].y) / 2.0
+    msz = (pts['left_shoulder'].z + pts['right_shoulder'].z) / 2.0
+    scale = math.sqrt((msx - mhx) ** 2 + (msy - mhy) ** 2 + (msz - mhz) ** 2)
+    if scale < 0.001:
+        scale = 1.0
 
-        # Cand avem suficiente cadre pentru un sliding window
-        if len(buffer_cadre) == WINDOW_SIZE:
-            # Flatten la toate caracteristicile din ferestra
-            rand_csv = ['jump_clip', 'perfect', fereastra_id]
-            for cadru in buffer_cadre:
-                rand_csv.extend(cadru)
+    feats = []
+    for n in LM_NAMES:
+        lm = pts[n]
+        feats.extend([(lm.x - mhx) / scale, (lm.y - mhy) / scale, (lm.z - mhz) / scale, lm.visibility])
 
-            toate_ferestrele.append(rand_csv)
-            fereastra_id += 1
+    def g(n):
+        return [pts[n].x, pts[n].y]
 
-            # Aplicam Stride-ul (stergem primele 'STRIDE' cadre pentru a muta fereastra)
-            buffer_cadre = buffer_cadre[STRIDE:]
+    feats.extend([
+        calculate_angle(g('left_hip'), g('left_knee'), g('left_ankle')),
+        calculate_angle(g('right_hip'), g('right_knee'), g('right_ankle')),
+        calculate_angle(g('left_shoulder'), g('left_hip'), g('left_knee')),
+        calculate_angle(g('right_shoulder'), g('right_hip'), g('right_knee')),
+        calculate_angle(g('left_shoulder'), g('left_elbow'), g('left_wrist')),
+        calculate_angle(g('right_shoulder'), g('right_elbow'), g('right_wrist')),
+        calculate_angle(g('left_hip'), g('left_shoulder'), g('left_elbow')),
+        calculate_angle(g('right_hip'), g('right_shoulder'), g('right_elbow')),
+    ])
+    return feats
 
-cap.release()
 
-# Construim Headerele (coloanele)
-columns = ['clip', 'clasa', 'window_id']
-for i in range(WINDOW_SIZE):
-    for name in landmark_names:
-        columns.extend([f'{name}_x_{i}', f'{name}_y_{i}', f'{name}_z_{i}', f'{name}_v_{i}'])
-    for ang in angle_names:
-        columns.append(f'{ang}_{i}')
+def raw_metrics(landmarks):
+    """Marimi brute pt FSM (ca in analyzer)."""
+    knee = (calculate_angle([L(landmarks, 'left_hip').x, L(landmarks, 'left_hip').y],
+                            [L(landmarks, 'left_knee').x, L(landmarks, 'left_knee').y],
+                            [L(landmarks, 'left_ankle').x, L(landmarks, 'left_ankle').y]) +
+            calculate_angle([L(landmarks, 'right_hip').x, L(landmarks, 'right_hip').y],
+                            [L(landmarks, 'right_knee').x, L(landmarks, 'right_knee').y],
+                            [L(landmarks, 'right_ankle').x, L(landmarks, 'right_ankle').y])) / 2.0
+    ankle_y = max(L(landmarks, 'left_ankle').y, L(landmarks, 'right_ankle').y)
+    return knee, ankle_y
 
-# Generam CSV-ul
-df = pd.DataFrame(toate_ferestrele, columns=columns)
-df.to_csv('dataset_jump.csv', index=False)
 
-print(f"Gata! S-au generat {len(df)} ferestre de cate 30 de cadre in 'dataset_jump.csv'")
+def resample(buf, n=WINDOW_SIZE):
+    if len(buf) >= n:
+        idx = np.linspace(0, len(buf) - 1, n).astype(int)
+        return [buf[i] for i in idx]
+    # prea putine cadre: repetam ultimul
+    return buf + [buf[-1]] * (n - len(buf))
+
+
+def proceseaza_clip(cale, nume, win_id):
+    cap = cv2.VideoCapture(cale)
+    ferestre = []
+
+    pre = []                 # ring de cadre inainte de LOAD
+    jump_buf = None          # buffer activ al sariturii
+    stare = "STAND"
+    ground_y = 0.0
+    flight = 0
+    cooldown = 0
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+        if not ret:
+            break
+        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        image.flags.writeable = False
+        res = pose.process(image)
+        if not res.pose_landmarks:
+            continue
+        lm = res.pose_landmarks.landmark
+        feats = frame_features(lm)
+        knee, ankle_y = raw_metrics(lm)
+
+        if jump_buf is not None:
+            jump_buf.append(feats)
+        else:
+            pre.append(feats)
+            pre = pre[-PRE_CONTEXT:]
+
+        if stare == "STAND":
+            ground_y = max(ground_y, ankle_y)
+            if knee < LOAD_KNEE:
+                stare = "LOAD"
+                flight = 0
+                jump_buf = list(pre)   # pornim cu contextul pre-LOAD
+        elif stare == "LOAD":
+            if ankle_y < ground_y - AIR_MARGIN:
+                stare = "FLIGHT"
+        elif stare == "FLIGHT":
+            flight += 1
+            if ankle_y >= ground_y - AIR_MARGIN and flight >= MIN_FLIGHT:
+                stare = "LAND"
+                cooldown = COOLDOWN
+        elif stare == "LAND":
+            cooldown -= 1
+            if cooldown <= 0:
+                ferestre.append([nume, 'perfect', win_id] + sum(resample(jump_buf), []))
+                win_id += 1
+                jump_buf = None
+                pre = []
+                stare = "STAND"
+
+    cap.release()
+    return ferestre, win_id
+
+
+if __name__ == "__main__":
+    if not os.path.exists(DATASET_DIR):
+        print(f"Nu gasesc folderul: {DATASET_DIR}")
+        raise SystemExit
+
+    clipuri = [f for f in os.listdir(DATASET_DIR) if f.lower().endswith(('.mp4', '.mov', '.avi'))]
+    print(f"Procesez {len(clipuri)} clipuri perfecte...")
+
+    toate = []
+    win_id = 0
+    for nume in clipuri:
+        fr, win_id = proceseaza_clip(os.path.join(DATASET_DIR, nume), nume, win_id)
+        print(f"  {nume}: {len(fr)} sarituri")
+        toate.extend(fr)
+
+    columns = ['clip', 'clasa', 'window_id']
+    for i in range(WINDOW_SIZE):
+        for n in LM_NAMES:
+            columns += [f'{n}_x_{i}', f'{n}_y_{i}', f'{n}_z_{i}', f'{n}_v_{i}']
+        for a in ANGLE_NAMES:
+            columns.append(f'{a}_{i}')
+
+    os.makedirs(os.path.dirname(OUT_CSV), exist_ok=True)
+    df = pd.DataFrame(toate, columns=columns)
+    df.to_csv(OUT_CSV, index=False)
+    print(f"\nGata! {len(df)} ferestre (perfect, jump-aligned) salvate in {OUT_CSV}")
+    print(f"Features/cadru: {(df.shape[1]-3)//WINDOW_SIZE} (trebuie 64)")

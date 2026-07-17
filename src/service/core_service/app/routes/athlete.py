@@ -1,19 +1,18 @@
 import os
+import json
 import shutil
 from typing import List
 
 from fastapi.responses import FileResponse
 from fastapi import FastAPI, APIRouter, Depends, UploadFile, File, HTTPException
-from matplotlib.pyplot import summer
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from starlette import status
-from fastapi import Query
 
 from shared.core.database import get_db
 from shared.crud import data_access
 from shared.crud.security import get_current_user
-from shared.schemas.schemas import AthleteUpdate, AttributeUpdate, Challenges
+from shared.schemas.schemas import AthleteUpdate, AttributeUpdate
 from shared.utils.challenge import videos_dir
 from ..celery_client import celery_app
 
@@ -117,9 +116,20 @@ def update_user(user_updated: AthleteUpdate, db: Session = Depends(get_db), curr
         db.rollback()
         return e
 
-
 @router.post("/video/upload", summary="ATHLETE: Upload video")
-async def upload_video(id_challenge : int, db: Session = Depends(get_db), file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
+async def upload_video(id_challenge: int, db: Session = Depends(get_db), file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
+
+    if not file.filename.lower().endswith(".mp4"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only MP4 files are allowed."
+        )
+
+    if file.content_type != "video/mp4":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file type. Please upload an MP4 video."
+        )
 
     athlete = data_access.get_athlete_by_id(db, current_user.get("sub"))
     if athlete is None:
@@ -128,9 +138,18 @@ async def upload_video(id_challenge : int, db: Session = Depends(get_db), file: 
             detail="The athlete was not found."
         )
 
-    workout_type = data_access.get_challenge_by_id(db, id_challenge).challenge_name
+    challenge = data_access.get_challenge_by_id(db, id_challenge)
+    if challenge is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Challenge {id_challenge} does not exist."
+        )
+
+    workout_type = challenge.challenge_name
+
     save_directory = os.path.join(videos_dir, "raw", workout_type, str(athlete.user_id))
     os.makedirs(save_directory, exist_ok=True)
+
     video_name = f"{workout_type}.mp4"
     video_path = os.path.join(save_directory, video_name)
 
@@ -142,8 +161,9 @@ async def upload_video(id_challenge : int, db: Session = Depends(get_db), file: 
             "message": "Video successfully received",
             "saved_path": video_path,
             "filename": file.filename,
-            "athlete_id:" : athlete.user_id,
+            "athlete_id": athlete.user_id,
         }
+
     except SQLAlchemyError as e:
         db.rollback()
         print(f"Database error: {e}")
@@ -151,9 +171,11 @@ async def upload_video(id_challenge : int, db: Session = Depends(get_db), file: 
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="database error"
         )
+
     except HTTPException as e:
         db.rollback()
-        return e
+        raise e
+
     except Exception as e:
         db.rollback()
         print(f"Unexpected error: {e}")
@@ -161,7 +183,6 @@ async def upload_video(id_challenge : int, db: Session = Depends(get_db), file: 
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Unexpected error"
         )
-
 
 @router.get("/video/display/{challenge_id}", summary="ATHLETE: returns processed video (analysed video)")
 def get_analyzed_video(challenge_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
@@ -184,6 +205,23 @@ def get_analyzed_video(challenge_id: int, db: Session = Depends(get_db), current
     return FileResponse(analyzed_video_path, media_type="video/mp4")
 
 
+@router.get("/video/summary/{challenge_id}", summary="ATHLETE: returns analysis summary (verdicts/counts/distance)")
+def get_analysis_summary(challenge_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    challenge = data_access.get_challenge_by_id(db, challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found.")
+
+    summary_path = os.path.join(
+        videos_dir, "processed", challenge.challenge_name,
+        str(current_user.get("sub")), f"{challenge.challenge_name}_summary.json"
+    )
+    if not os.path.exists(summary_path):
+        raise HTTPException(status_code=404, detail="Summary not found.")
+
+    with open(summary_path, "r") as f:
+        return json.load(f)
+
+
 @router.get("/video/status/{challenge_id}", summary="Check if analysis is complete")
 def check_video_status(challenge_id: int, db: Session = Depends(get_db),
                        current_user: dict = Depends(get_current_user)):
@@ -195,16 +233,29 @@ def check_video_status(challenge_id: int, db: Session = Depends(get_db),
     return {"status": result.status}
 
 
-@router.post("/video/analyze", summary="ATHLETE: Run analysis")
-def run_analysis_route(id_challenge: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+@router.get("/video/raw_exists/{challenge_id}", summary="ATHLETE: are un clip incarcat (gata de analiza)?")
+def raw_video_exists(challenge_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    challenge = data_access.get_challenge_by_id(db, challenge_id)
+    if challenge is None:
+        return False
+    raw_path = os.path.join(
+        videos_dir, "raw", challenge.challenge_name,
+        str(current_user.get("sub")), f"{challenge.challenge_name}.mp4"
+    )
+    return os.path.exists(raw_path)
+
+
+@router.get("/completed_challenges", summary="ATHLETE: ids of completed challenges")
+def get_completed_challenges(db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
+    # get_challenge_results intoarce doar rezultatele cu status 'completed'
+    results = data_access.get_challenge_results(db, int(current_user.get("sub")))
+    return list({r.challenge_id for r in results})
+
+
+@router.post("/video/analyze", summary="ATHLETE: Run analysis", status_code=status.HTTP_202_ACCEPTED)
+def run_analysis_route( id_challenge: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):
     athlete = data_access.get_athlete_by_id(db, current_user.get("sub"))
-    access = data_access.restriction(db, int(current_user.get("sub")), id_challenge)
-    if access:
-        db.rollback()
-        raise HTTPException(
-            status_code=307,
-            detail="You cannot try this challenge again (3 month restriction)"
-        )
+
     if athlete is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -212,58 +263,80 @@ def run_analysis_route(id_challenge: int, db: Session = Depends(get_db), current
         )
 
     challenge_obj = data_access.get_challenge_by_id(db, id_challenge)
+
     if challenge_obj is None:
         raise HTTPException(
-            status_code=404,
-            detail= f"Challenge {challenge_obj} does not exist."
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Challenge {id_challenge} does not exist."
         )
-    workout_type = challenge_obj.challenge_name
-    save_directory = os.path.join(videos_dir, "raw", workout_type, str(athlete.user_id))
-    os.makedirs(save_directory, exist_ok=True)
-    video_name = f"{workout_type}.mp4"
-    video_path = os.path.join(save_directory, video_name)
-    new_result = data_access.init_challenge_result(db, id_challenge, athlete.user_id)
-    db.commit()
-    if not os.path.exists(video_path):
-        db.rollback()
+
+    access = data_access.restriction(
+        db,
+        int(current_user.get("sub")),
+        id_challenge
+    )
+
+    if access:
         raise HTTPException(
-            status_code=404,
-            detail=f"folder '{video_name}' does not exist"
+            status_code=status.HTTP_409_CONFLICT,
+            detail="You cannot try this challenge again (3 month restriction)"
         )
+
+    workout_type = challenge_obj.challenge_name
 
     if not workout_type:
         raise HTTPException(
-            status_code=400,
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Type '{workout_type}' does not exist."
         )
 
-    if not athlete:
+    save_directory = os.path.join(
+        videos_dir,
+        "raw",
+        workout_type,
+        str(athlete.user_id)
+    )
+
+    video_name = f"{workout_type}.mp4"
+    video_path = os.path.join(save_directory, video_name)
+
+    if not os.path.exists(video_path):
         raise HTTPException(
-            status_code=404,
-            detail=f"Id athlete {athlete.user_id} does not exist."
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Video '{video_name}' does not exist."
         )
 
     try:
-        celery_app.send_task(
+        new_result = data_access.init_challenge_result(
+            db,
+            id_challenge,
+            athlete.user_id
+        )
+
+        db.commit()
+        db.refresh(new_result)
+
+        task = celery_app.send_task(
             "analyze_video_task",
             args=[athlete.user_id, id_challenge, new_result.id_result]
         )
 
-
         return {
-            "status": "pending",
-            "message": "The analysis has been sent to the processing server. Check the results in a few minutes."
+            "status": "accepted",
+            "status_code": 202,
+            "task_id": task.id,
+            "id_result": new_result.id_result,
+            "message": "The analysis has been accepted and sent to the processing server."
         }
+
     except SQLAlchemyError as e:
         db.rollback()
         print(f"Database error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="database error"
+            detail="Database error"
         )
-    except HTTPException as e:
-        db.rollback()
-        raise e
+
     except Exception as e:
         db.rollback()
         print(f"Unexpected error: {e}")
@@ -271,7 +344,6 @@ def run_analysis_route(id_challenge: int, db: Session = Depends(get_db), current
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Unexpected error"
         )
-
 
 @router.get("/challenge_result/{challenge_id}", summary="ATHLETE: Get challenge result")
 def challenge_result(challenge_id: int, db: Session = Depends(get_db), current_user: dict = Depends(get_current_user)):

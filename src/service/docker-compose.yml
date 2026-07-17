@@ -1,22 +1,20 @@
-version: '3.8'
-
 services:
-  #DB (MariaDB)
+  # DB (MariaDB)
   talent-bridge-db:
     image: mariadb:latest
     container_name: talent-bridge-db
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: Rares545
-      MYSQL_DATABASE: db_talentbridge
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
     ports:
       - "3306:3306"
     volumes:
-      - ./mysql_data:/var/lib/mysql
+      - ../mysql_dataa:/var/lib/mysql
     networks:
       - tb_network
 
-  #REDIS
+  # REDIS
   redis:
     image: redis:alpine
     container_name: talent-bridge-redis
@@ -25,7 +23,7 @@ services:
     networks:
       - tb_network
 
-  #AUTH SERVICE
+  # AUTH SERVICE
   auth_service:
     build:
       context: ..
@@ -34,15 +32,16 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ..:/app
+      - ../..:/app
+    environment:
+      PYTHONPATH: ${PYTHONPATH}
+      DATABASE_URL: ${DATABASE_URL}
     depends_on:
       - talent-bridge-db
-    environment:
-      DATABASE_URL: mysql+pymysql://root:Rares545@talent-bridge-db/db_talentbridge
     networks:
       - tb_network
 
-  #CORE SERVICE
+  # CORE SERVICE
   core_service:
     build:
       context: ..
@@ -51,32 +50,37 @@ services:
     ports:
       - "8001:8001"
     volumes:
-      - ..:/app
+      - ../..:/app
+    environment:
+      PYTHONPATH: ${PYTHONPATH}
+      DATABASE_URL: ${DATABASE_URL}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
     depends_on:
       - talent-bridge-db
-    environment:
-      DATABASE_URL: mysql+pymysql://root:Rares545@talent-bridge-db/db_talentbridge
-      CELERY_BROKER_URL: redis://talent-bridge-redis:6379/0
-      CELERY_RESULT_BACKEND: redis://talent-bridge-redis:6379/0
+      - redis
     networks:
       - tb_network
 
-  #ANALYSIS WORKER (Celery)
+  # ANALYSIS WORKER
   analysis_worker:
     build:
       context: ..
       dockerfile: service/analysis_worker/Dockerfile
-    container_name: tb_analysis_worker
+    # fara container_name fix, ca sa putem rula mai multe instante (scale)
+    deploy:
+      replicas: 3
     volumes:
-      - ..:/app
-      - ./service/analysis_worker/app/data:/app/service/analysis_worker/app/data
+      - ../..:/app
+      - ./analysis_worker/app/data:/app/service/analysis_worker/app/data
+    environment:
+      PYTHONPATH: ${PYTHONPATH}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
+      DATABASE_URL: ${DATABASE_URL}
     depends_on:
       - redis
       - talent-bridge-db
-    environment:
-      CELERY_BROKER_URL: redis://redis:6379/0
-      CELERY_RESULT_BACKEND: redis://redis:6379/0
-      DATABASE_URL: mysql+pymysql://root:Rares545@talent-bridge-db/db_talentbridge
     networks:
       - tb_network
 

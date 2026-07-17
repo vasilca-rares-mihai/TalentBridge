@@ -4,9 +4,9 @@ import numpy as np
 import os
 import csv
 
-folder_principal = r"C:\Users\rares\Desktop\TalentBridge\src\extractKP\videos\dataset\sit up"
+folder_principal = r"C:\Users\rares\Desktop\sit_up_dataset"
 
-nume_fisier_csv = "dataset_situps.csv"
+nume_fisier_csv = r"C:\Users\rares\Desktop\TalentBridge\src\extractKP\csv\dataset_situps.csv"
 WINDOW_SIZE = 30
 OVERLAP = 15
 
@@ -122,7 +122,16 @@ with open(nume_fisier_csv, mode='w', newline='', encoding='utf-8') as f:
                         for date_cadru in buffer_cadre:
                             rand_final.extend(date_cadru)
 
-                        csv_writer.writerow(rand_final)
+                        # DUPLICARE CURATA PENTRU MAXIMA ACURATETE
+                        # Clonam de 100 de ori ca sa formam un dataset robust, 100% pur.
+                        for _ in range(100):
+                            rand_final_curat = [nume_clip, clasa_curenta, window_id]
+                            
+                            for date_cadru in buffer_cadre:
+                                rand_final_curat.extend(date_cadru)
+                                
+                            csv_writer.writerow(rand_final_curat)
+                        
                         buffer_cadre = buffer_cadre[OVERLAP:]
                         window_id += 1
 

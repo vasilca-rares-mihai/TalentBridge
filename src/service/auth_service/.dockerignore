@@ -26,3 +26,17 @@ __pycache__/
 build/
 dist/
 *.egg-info/
+
+.git
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.pyo
+.vscode
+.idea
+*.mp4
+*.avi
+*.csv
+mysql_data
